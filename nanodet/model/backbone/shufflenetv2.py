@@ -44,11 +44,11 @@ class ShuffleV2Block(nn.Module):
                 self.depthwise_conv(
                     inp, inp, kernel_size=3, stride=self.stride, padding=1
                 ),
-                nn.BatchNorm2d(inp),
+                nn.LayerNorm(inp),
                 nn.Conv2d(
                     inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False
                 ),
-                nn.BatchNorm2d(branch_features),
+                nn.LayerNorm(branch_features),
                 act_layers(activation),
             )
         else:
@@ -63,7 +63,7 @@ class ShuffleV2Block(nn.Module):
                 padding=0,
                 bias=False,
             ),
-            nn.BatchNorm2d(branch_features),
+            nn.LayerNorm(branch_features),
             act_layers(activation),
             self.depthwise_conv(
                 branch_features,
@@ -72,7 +72,7 @@ class ShuffleV2Block(nn.Module):
                 stride=self.stride,
                 padding=1,
             ),
-            nn.BatchNorm2d(branch_features),
+            nn.LayerNorm(branch_features),
             nn.Conv2d(
                 branch_features,
                 branch_features,
@@ -81,7 +81,7 @@ class ShuffleV2Block(nn.Module):
                 padding=0,
                 bias=False,
             ),
-            nn.BatchNorm2d(branch_features),
+            nn.LayerNorm(branch_features),
             act_layers(activation),
         )
 
@@ -139,7 +139,7 @@ class ShuffleNetV2(nn.Module):
         output_channels = self._stage_out_channels[0]
         self.conv1 = nn.Sequential(
             nn.Conv2d(input_channels, output_channels, 3, 2, 1, bias=False),
-            nn.BatchNorm2d(output_channels),
+            nn.LayerNorm(output_channels),
             act_layers(activation),
         )
         input_channels = output_channels
@@ -167,7 +167,7 @@ class ShuffleNetV2(nn.Module):
         if self.with_last_conv:
             conv5 = nn.Sequential(
                 nn.Conv2d(input_channels, output_channels, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(output_channels),
+                nn.LayerNorm(output_channels),
                 act_layers(activation),
             )
             self.stage4.add_module("conv5", conv5)
