@@ -29,7 +29,7 @@ def channel_shuffle(x, groups):
 
 
 class ShuffleV2Block(nn.Module):
-    def __init__(self, inp, oup, stride, activation="ReLU"):
+    def __init__(self, inp, oup, stride, activation="SiLU"):
         super(ShuffleV2Block, self).__init__()
 
         if not (1 <= stride <= 3):
@@ -108,8 +108,8 @@ class ShuffleNetV2(nn.Module):
         out_stages=(2, 3, 4),
         with_last_conv=False,
         kernal_size=3,
-        activation="ReLU",
-        pretrain=True,
+        activation="SiLU",
+        pretrain=False,
     ):
         super(ShuffleNetV2, self).__init__()
         # out_stages can only be a subset of (2, 3, 4)
@@ -184,7 +184,7 @@ class ShuffleNetV2(nn.Module):
                 output.append(x)
         return tuple(output)
 
-    def _initialize_weights(self, pretrain=True):
+    def _initialize_weights(self, pretrain=False):
         print("init weights...")
         for name, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
