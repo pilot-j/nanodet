@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
-
+from .ghostnet import GhostModule
 from ..module.activation import act_layers
 
 model_urls = {
@@ -44,11 +44,11 @@ class ShuffleV2Block(nn.Module):
                 self.depthwise_conv(
                     inp, inp, kernel_size=3, stride=self.stride, padding=1
                 ),
-                nn.LayerNorm(inp),
+                nn.BatchNorm2d(inp),
                 nn.Conv2d(
                     inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False
                 ),
-                nn.LayerNorm(branch_features),
+                nn.BatchNorm2d(branch_features),
                 act_layers(activation),
             )
         else:
@@ -63,7 +63,7 @@ class ShuffleV2Block(nn.Module):
                 padding=0,
                 bias=False,
             ),
-            nn.LayerNorm(branch_features),
+            nn.BatchNorm2d(branch_features),
             act_layers(activation),
             self.depthwise_conv(
                 branch_features,
@@ -72,7 +72,7 @@ class ShuffleV2Block(nn.Module):
                 stride=self.stride,
                 padding=1,
             ),
-            nn.LayerNorm(branch_features),
+            nn.BatchNorm2d(branch_features),
             nn.Conv2d(
                 branch_features,
                 branch_features,
@@ -81,7 +81,7 @@ class ShuffleV2Block(nn.Module):
                 padding=0,
                 bias=False,
             ),
-            nn.LayerNorm(branch_features),
+            nn.BatchNorm2d(branch_features),
             act_layers(activation),
         )
 
@@ -156,11 +156,9 @@ class ShuffleNetV2(nn.Module):
                 )
             ]
             for i in range(repeats - 1):
-                seq.append(
-                    ShuffleV2Block(
-                        output_channels, output_channels, 1, activation=activation
-                    )
-                )
+                if i != 6 and i != 7: 
+                    seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
+                seq.append(GhostModule(output_channels, output_channels, stride= 1, activation=activation))
             setattr(self, name, nn.Sequential(*seq))
             input_channels = output_channels
         output_channels = self._stage_out_channels[-1]
