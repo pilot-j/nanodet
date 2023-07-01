@@ -165,7 +165,7 @@ class ShuffleNetV2(nn.Module):
         if self.with_last_conv:
             conv5 = nn.Sequential(
                 nn.Conv2d(input_channels, output_channels, 1, 1, 0, bias=False),
-                nn.LayerNorm(output_channels),
+                nn.BatchNorm2d(output_channels),
                 act_layers(activation),
             )
             self.stage4.add_module("conv5", conv5)
