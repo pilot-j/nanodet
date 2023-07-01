@@ -29,7 +29,7 @@ def channel_shuffle(x, groups):
 
 
 class ShuffleV2Block(nn.Module):
-    def __init__(self, inp, oup, stride, activation="SiLU"):
+    def __init__(self, inp, oup, stride, activation="ReLU"):
         super(ShuffleV2Block, self).__init__()
 
         if not (1 <= stride <= 3):
@@ -139,7 +139,7 @@ class ShuffleNetV2(nn.Module):
         output_channels = self._stage_out_channels[0]
         self.conv1 = nn.Sequential(
             nn.Conv2d(input_channels, output_channels, 3, 2, 1, bias=False),
-            nn.LayerNorm(output_channels),
+            nn.BatchNorm2d(output_channels),
             act_layers(activation),
         )
         input_channels = output_channels
@@ -156,9 +156,9 @@ class ShuffleNetV2(nn.Module):
                 )
             ]
             for i in range(repeats - 1):
-                if i != 6 and i != 7: 
+                if i < 4: 
                     seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
-                seq.append(GhostModule(output_channels, output_channels, stride= 1, activation=activation))
+                #seq.append(GhostModule(output_channels, output_channels, stride= 1, activation=activation))
             setattr(self, name, nn.Sequential(*seq))
             input_channels = output_channels
         output_channels = self._stage_out_channels[-1]
