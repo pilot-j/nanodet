@@ -11,7 +11,7 @@ model:
       name: ShuffleNetV2
       model_size: 1.0x
       out_stages: [2,3,4]
-      activation: SiLU
+      activation: ReLU
     fpn:
       name: GhostPAN
       in_channels: [116, 232,464]
@@ -19,7 +19,7 @@ model:
       kernel_size: 5
       num_extra_level: 1
       use_depthwise: True
-      activation: SiLU
+      activation: ReLU
     head:
       name: NanoDetPlusHead
       num_classes: 80
@@ -28,7 +28,7 @@ model:
       stacked_convs: 2
       kernel_size: 5
       strides: [8, 16, 32, 64]
-      activation: SiLU
+      activation: ReLU
       reg_max: 7
       norm_cfg:
         type: BN
@@ -47,12 +47,12 @@ model:
     # Auxiliary head, only use in training time.
     aux_head:
       name: SimpleConvHead
-      num_classes: 80
+      num_classes: 10
       input_channel: 192
       feat_channels: 192
       stacked_convs: 4
       strides: [8, 16, 32, 64]
-      activation: SiLU
+      activation: ReLU
       reg_max: 7
 
 class_names: &class_names ['dozer', 'backhoe_loader', 'wheel_loader', 'excavator', 'dump_truck', 'grader', 'compactor', 'mobile_crane', 'cement_truck', 'tower_crane']  #Please fill in the category names (not include background category)
@@ -62,7 +62,7 @@ data:
     class_names: *class_names
     img_path: /content/nanodet/dataset_voc/train/images  #Please fill in train image path
     ann_path: /content/nanodet/dataset_voc/train/labels  #Please fill in train xml path
-    input_size: [320,320] #[w,h]
+    input_size: [640,640] #[w,h]
     keep_ratio: True
     pipeline:
       perspective: 0.0
@@ -81,14 +81,14 @@ data:
     class_names: *class_names
     img_path: /content/nanodet/dataset_voc/val/images #Please fill in val image path
     ann_path: /content/nanodet/dataset_voc/val/labels #Please fill in val xml path
-    input_size: [320,320] #[w,h]
+    input_size: [640,640] #[w,h]
     keep_ratio: True
     pipeline:
       normalize: [[103.53, 116.28, 123.675], [57.375, 57.12, 58.395]]
 device:
   gpu_ids: [0] # Set like [0, 1, 2, 3] if you have multi-GPUs
   workers_per_gpu: 2
-  batchsize_per_gpu: 32
+  batchsize_per_gpu: 16
   precision: 32 # set to 16 to use AMP training
 schedule:
 #  resume:
