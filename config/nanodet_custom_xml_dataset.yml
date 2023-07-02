@@ -1,5 +1,5 @@
 #Config File example
-save_dir: /content/nanodet/results_exp
+save_dir: /content/drive/MyDrive/results_exp
 model:
   weight_averager:
     name: ExpMovingAverager
@@ -22,7 +22,7 @@ model:
       activation: ReLU
     head:
       name: NanoDetPlusHead
-      num_classes: 80
+      num_classes: 10
       input_channel: 96
       feat_channels: 96
       stacked_convs: 2
