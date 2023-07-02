@@ -117,7 +117,7 @@ class ShuffleNetV2(nn.Module):
 
         print("model size is ", model_size)
 
-        self.stage_repeats = [4, 8, 4]
+        self.stage_repeats = [4, 4, 4]
         self.model_size = model_size
         self.out_stages = out_stages
         self.with_last_conv = with_last_conv
@@ -155,9 +155,8 @@ class ShuffleNetV2(nn.Module):
                     input_channels, output_channels, 2, activation=activation
                 )
             ]
-            for i in range(repeats - 1):
-                if i < 4: 
-                    seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
+            for i in range(4):
+                seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
                 #seq.append(GhostModule(output_channels, output_channels, stride= 1, activation=activation))
             setattr(self, name, nn.Sequential(*seq))
             input_channels = output_channels
