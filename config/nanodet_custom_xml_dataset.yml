@@ -25,7 +25,7 @@ model:
       num_classes: 10
       input_channel: 96
       feat_channels: 96
-      stacked_convs: 3 #def =2
+      stacked_convs: 3 
       kernel_size: 5
       strides: [8, 16, 32, 64]
       activation: ReLU
@@ -60,9 +60,9 @@ data:
   train:
     name: XMLDataset
     class_names: *class_names
-    img_path: /kaggle/input/acid-7k/dataset/train/images  #Please fill in train image path
-    ann_path: /kaggle/input/acid-7k/dataset/train/labels  #Please fill in train xml path
-    input_size: [640,640] #[w,h]
+    img_path: /content/nanodet/dataset_voc/train/images  #Please fill in train image path
+    ann_path: /content/nanodet/dataset_voc/train/labels  #Please fill in train xml path
+    input_size: [320,320] #[w,h]
     keep_ratio: True
     pipeline:
       perspective: 0.0
@@ -79,9 +79,9 @@ data:
   val:
     name: XMLDataset
     class_names: *class_names
-    img_path: /kaggle/input/acid-7k/dataset/val/images #Please fill in val image path
-    ann_path: /kaggle/input/acid-7k/dataset/val/labels #Please fill in val xml path
-    input_size: [640,640] #[w,h]
+    img_path: /content/nanodet/dataset_voc/val/images #Please fill in val image path
+    ann_path: /content/nanodet/dataset_voc/val/labels #Please fill in val xml path
+    input_size: [320,320] #[w,h]
     keep_ratio: True
     pipeline:
       normalize: [[103.53, 116.28, 123.675], [57.375, 57.12, 58.395]]
