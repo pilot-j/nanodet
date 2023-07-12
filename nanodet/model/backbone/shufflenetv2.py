@@ -79,7 +79,7 @@ def channel_shuffle(x, groups):
 class ShuffleV2Block(nn.Module):
     def __init__(self, inp, oup, stride, activation="ReLU", has_se= False):
         super(ShuffleV2Block, self).__init__()
-
+        self.has_se = has_se
         if not (1 <= stride <= 3):
             raise ValueError("illegal stride value")
         self.stride = stride
@@ -145,8 +145,10 @@ class ShuffleV2Block(nn.Module):
             out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
 
         out = channel_shuffle(out, 2)
-        if has_se:
-            out = SqueezeExcite(out, se_ratio = 0.5)
+        if self.has_se:
+            out = SqueezeExcite(out)
+        else out = out
+        
         return out
 
 
