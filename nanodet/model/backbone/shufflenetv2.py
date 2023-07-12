@@ -11,6 +11,54 @@ model_urls = {
     "shufflenetv2_2.0x": None,
 }
 
+def _make_divisible(v, divisor, min_value=None):
+    """
+    This function is taken from the original tf repo.
+    It ensures that all layers have a channel number that is divisible by 8
+    It can be seen here:
+    https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py
+    """
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    # Make sure that round down does not go down by more than 10%.
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
+
+def hard_sigmoid(x, inplace: bool = False):
+    if inplace:
+        return x.add_(3.0).clamp_(0.0, 6.0).div_(6.0)
+    else:
+        return F.relu6(x + 3.0) / 6.0
+
+class SqueezeExcite(nn.Module):
+    def __init__(
+        self,
+        in_chs,
+        se_ratio=0.25,
+        reduced_base_chs=None,
+        activation="ReLU",
+        gate_fn=hard_sigmoid,
+        divisor=4,
+        **_
+    ):
+        super(SqueezeExcite, self).__init__()
+        self.gate_fn = gate_fn
+        reduced_chs = _make_divisible((reduced_base_chs or in_chs) * se_ratio, divisor)
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv_reduce = nn.Conv2d(in_chs, reduced_chs, 1, bias=True)
+        self.act1 = act_layers(activation)
+        self.conv_expand = nn.Conv2d(reduced_chs, in_chs, 1, bias=True)
+
+    def forward(self, x):
+        x_se = self.avg_pool(x)
+        x_se = self.conv_reduce(x_se)
+        x_se = self.act1(x_se)
+        x_se = self.conv_expand(x_se)
+        x = x * self.gate_fn(x_se)
+        return x
+
 
 def channel_shuffle(x, groups):
     # type: (torch.Tensor, int) -> torch.Tensor
@@ -29,7 +77,7 @@ def channel_shuffle(x, groups):
 
 
 class ShuffleV2Block(nn.Module):
-    def __init__(self, inp, oup, stride, activation="ReLU"):
+    def __init__(self, inp, oup, stride, activation="ReLU", has_se= False):
         super(ShuffleV2Block, self).__init__()
 
         if not (1 <= stride <= 3):
@@ -97,7 +145,8 @@ class ShuffleV2Block(nn.Module):
             out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
 
         out = channel_shuffle(out, 2)
-
+        if has_se:
+            out = SqueezeExcite(out, se_ratio = 0.5)
         return out
 
 
@@ -117,7 +166,7 @@ class ShuffleNetV2(nn.Module):
 
         print("model size is ", model_size)
 
-        self.stage_repeats = [4, 4, 4]
+        self.stage_repeats = [4, 8 , 4]
         self.model_size = model_size
         self.out_stages = out_stages
         self.with_last_conv = with_last_conv
@@ -156,7 +205,10 @@ class ShuffleNetV2(nn.Module):
                 )
             ]
             for i in range(repeats - 1):
-                seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
+                if name =="stage2": 
+                    seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
+                else:
+                    seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation, has_se = True))
                  
             setattr(self, name, nn.Sequential(*seq))
             input_channels = output_channels
