@@ -156,10 +156,7 @@ class ShuffleNetV2(nn.Module):
                 )
             ]
             for i in range(repeats - 1):
-                if name == "stage2":
-                    seq.append(GhostModule(output_channels, output_channels, stride= 1, activation=activation))
-                else:
-                    seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
+                seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
                  
             setattr(self, name, nn.Sequential(*seq))
             input_channels = output_channels
