@@ -6,7 +6,7 @@ model:
     decay: 0.9998
   arch:
     name: NanoDetPlus
-    detach_epoch: 1
+    detach_epoch: 10
     backbone:
       name: ShuffleNetV2
       model_size: 1.0x
@@ -62,7 +62,7 @@ data:
     class_names: *class_names
     img_path: /content/nanodet/dataset_voc/train/images  #Please fill in train image path
     ann_path: /content/nanodet/dataset_voc/train/labels  #Please fill in train xml path
-    input_size: [640,640] #[w,h]
+    input_size: [320,320] #[w,h]
     keep_ratio: True
     pipeline:
       perspective: 0.0
@@ -81,7 +81,7 @@ data:
     class_names: *class_names
     img_path: /content/nanodet/dataset_voc/val/images #Please fill in val image path
     ann_path: /content/nanodet/dataset_voc/val/labels #Please fill in val xml path
-    input_size: [640,640] #[w,h]
+    input_size: [320,320] #[w,h]
     keep_ratio: True
     pipeline:
       normalize: [[103.53, 116.28, 123.675], [57.375, 57.12, 58.395]]
@@ -113,4 +113,4 @@ evaluator:
   save_key: mAP
 
 log:
-  interval: 5
+  interval: 500
