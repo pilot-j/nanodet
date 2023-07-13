@@ -132,6 +132,7 @@ class ShuffleV2Block(nn.Module):
             nn.BatchNorm2d(branch_features),
             act_layers(activation),
         )
+        self.se= SqueezeExcite(branch_features*2)
 
     @staticmethod
     def depthwise_conv(i, o, kernel_size, stride=1, padding=0, bias=False):
@@ -143,11 +144,10 @@ class ShuffleV2Block(nn.Module):
             out = torch.cat((x1, self.branch2(x2)), dim=1)
         else:
             out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
-
-        out = channel_shuffle(out, 2)
         if self.has_se:
-            out = SqueezeExcite(out)
-        else out = out
+            out = self.se(out, se_ratio =0.50)
+        
+        out = channel_shuffle(out, 2)
         
         return out
 
@@ -207,10 +207,10 @@ class ShuffleNetV2(nn.Module):
                 )
             ]
             for i in range(repeats - 1):
-                if name =="stage2": 
-                    seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
-                else:
+                if name =="stage1": 
                     seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation, has_se = True))
+                else:
+                    seq.append(ShuffleV2Block(output_channels, output_channels, 1, activation=activation))
                  
             setattr(self, name, nn.Sequential(*seq))
             input_channels = output_channels
