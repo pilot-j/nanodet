@@ -172,7 +172,8 @@ class ShuffleNetV2(nn.Module):
         input_channels = output_channels
 
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
+        self.dn_first = DN_1(116,116)
+        self.dn_second = DN_1(232,232)
         stage_names = ["stage{}".format(i) for i in [2, 3, 4]]
         for name, repeats, output_channels in zip(
             stage_names, self.stage_repeats, self._stage_out_channels[1:]
@@ -206,8 +207,8 @@ class ShuffleNetV2(nn.Module):
             if i in self.out_stages:
                 output.append(x)
         if len(output) >= 2:
-            output[0] = self.DN_1(output[0])
-            output[1] = self.DN_1(output[1])
+            output[0] = self.dn_first(output[0])
+            output[1] = self.dn_second(output[1])
 
         return tuple(output)
 
