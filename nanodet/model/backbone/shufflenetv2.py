@@ -57,9 +57,8 @@ def channel_shuffle(x, groups):
 
 
 class ShuffleV2Block(nn.Module):
-    def __init__(self, inp, oup, stride, activation="ReLU", has_se= False):
+    def __init__(self, inp, oup, stride, activation="ReLU"):
         super(ShuffleV2Block, self).__init__()
-        self.has_se = has_se
         if not (1 <= stride <= 3):
             raise ValueError("illegal stride value")
         self.stride = stride
@@ -112,7 +111,6 @@ class ShuffleV2Block(nn.Module):
             nn.BatchNorm2d(branch_features),
             act_layers(activation),
         )
-        self.se= SqueezeExcite(branch_features*2)
 
     @staticmethod
     def depthwise_conv(i, o, kernel_size, stride=1, padding=0, bias=False):
@@ -124,8 +122,6 @@ class ShuffleV2Block(nn.Module):
             out = torch.cat((x1, self.branch2(x2)), dim=1)
         else:
             out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
-        if self.has_se:
-            out = self.se(out, se_ratio =0.50)
         
         out = channel_shuffle(out, 2)
         
