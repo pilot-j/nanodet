@@ -10,55 +10,35 @@ model_urls = {
     "shufflenetv2_1.5x": None,
     "shufflenetv2_2.0x": None,
 }
-
-def _make_divisible(v, divisor, min_value=None):
-    """
-    This function is taken from the original tf repo.
-    It ensures that all layers have a channel number that is divisible by 8
-    It can be seen here:
-    https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py
-    """
-    if min_value is None:
-        min_value = divisor
-    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
-    # Make sure that round down does not go down by more than 10%.
-    if new_v < 0.9 * v:
-        new_v += divisor
-    return new_v
-
-def hard_sigmoid(x, inplace: bool = False):
-    if inplace:
-        return x.add_(3.0).clamp_(0.0, 6.0).div_(6.0)
-    else:
-        return F.relu6(x + 3.0) / 6.0
-
-class SqueezeExcite(nn.Module):
-    def __init__(
-        self,
-        in_chs,
-        se_ratio=0.25,
-        reduced_base_chs=None,
-        activation="ReLU",
-        gate_fn=hard_sigmoid,
-        divisor=4,
-        **_
-    ):
-        super(SqueezeExcite, self).__init__()
-        self.gate_fn = gate_fn
-        reduced_chs = _make_divisible((reduced_base_chs or in_chs) * se_ratio, divisor)
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.conv_reduce = nn.Conv2d(in_chs, reduced_chs, 1, bias=True)
-        self.act1 = act_layers(activation)
-        self.conv_expand = nn.Conv2d(reduced_chs, in_chs, 1, bias=True)
+class DilatedConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, dilation_rate):
+        super(DilatedConvBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=dilation_rate[0], dilation=dilation_rate[0])
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=dilation_rate[1], dilation=dilation_rate[1])
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        x_se = self.avg_pool(x)
-        x_se = self.conv_reduce(x_se)
-        x_se = self.act1(x_se)
-        x_se = self.conv_expand(x_se)
-        x = x * self.gate_fn(x_se)
-        return x
+        out = self.conv1(x)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.relu(out)
+        return out
 
+class DN_1(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(DN_1, self).__init__()
+        self.avg_pool = nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size = 3, padding = 1, dilation=1)
+        self.dilated_conv_r2_1 = DilatedConvBlock(in_channels, out_channels, dilation_rate=[1,2])
+        self.dilated_conv_r2_2 = DilatedConvBlock(out_channels, out_channels, dilation_rate=[1,3])
+
+    def forward(self, x):
+        avg_pool_out = self.avg_pool(x)
+        dilated_conv1 = self.conv1(x)
+        dilated_conv_r2_out = self.dilated_conv_r2_1(x)
+        dilated_conv_r2_out = self.dilated_conv_r2_2(dilated_conv_r2_out)
+        output = avg_pool_out + dilated_conv1 + dilated_conv_r2_out
+        return output
 
 def channel_shuffle(x, groups):
     # type: (torch.Tensor, int) -> torch.Tensor
@@ -233,6 +213,10 @@ class ShuffleNetV2(nn.Module):
             x = stage(x)
             if i in self.out_stages:
                 output.append(x)
+        if len(output) >= 2:
+            output[0] = self.DN_1(output[0])
+            output[1] = self.DN_1(output[1])
+
         return tuple(output)
 
     def _initialize_weights(self, pretrain=False):
