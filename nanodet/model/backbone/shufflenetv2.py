@@ -13,8 +13,8 @@ model_urls = {
 class DilatedConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, dilation_rate):
         super(DilatedConvBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=dilation_rate[0], dilation=dilation_rate[0])
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=dilation_rate[1], dilation=dilation_rate[1])
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding = dilation_rate,  dilation=dilation_rate)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -27,19 +27,21 @@ class DilatedConvBlock(nn.Module):
 class DN_1(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(DN_1, self).__init__()
-        self.avg_pool = nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size = 3, padding = 1, dilation=1)
-        self.dilated_conv_r2_1 = DilatedConvBlock(in_channels, out_channels, dilation_rate=[1,2])
-        self.dilated_conv_r2_2 = DilatedConvBlock(out_channels, out_channels, dilation_rate=[1,3])
-
+        self.avg_pool = nn.AvgPool2d(kernel_size=3, stride=1, padding =1)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size = 1, stride = 1)
+        self.dilated_conv_r2_1 = DilatedConvBlock(in_channels, out_channels, dilation_rate=2)
+        self.dilated_conv_r2_2 = DilatedConvBlock(in_channels, out_channels, dilation_rate=3)
+        self.dilated_conv_r2_3 = DilatedConvBlock(in_channels, out_channels, dilation_rate=4)
     def forward(self, x):
         avg_pool_out = self.avg_pool(x)
         dilated_conv1 = self.conv1(x)
-        dilated_conv_r2_out = self.dilated_conv_r2_1(x)
-        dilated_conv_r2_out = self.dilated_conv_r2_2(dilated_conv_r2_out)
-        output = avg_pool_out + dilated_conv1 + dilated_conv_r2_out
+        d_out1 = self.dilated_conv_r2_1(x)
+        d_out2 = self.dilated_conv_r2_2(x)
+        d_out3 = self.dilated_conv_r2_3(x)
+        
+        output = avg_pool_out + dilated_conv1 + d_out1+ d_out2+d_out3
         return output
-
+        
 def channel_shuffle(x, groups):
     # type: (torch.Tensor, int) -> torch.Tensor
     batchsize, num_channels, height, width = x.data.size()
