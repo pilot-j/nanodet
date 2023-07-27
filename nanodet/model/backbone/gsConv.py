@@ -1,103 +1,80 @@
+import math
+
 import torch
 import torch.nn as nn
-class CBL(nn.Module):
-    def__init__(self, in_ch, out_ch, k=3, s=1, p=0, batch_norm=False):
-    super().__init__()
-    self.batch_norm = batch_norm
-    self.conv = nn.Conv2d(in_ch, out_ch, kernel_size =k, stride = s, padding =p)
-    self.bn= nn.BatchNorm2d(out_ch)
 
-def forward(self,x):
-    x = self.conv(x)
-    if(self.batch_norm):
-        return self.bn(x)
-    else:
-        return x
+#from utils.activations import MemoryEfficientMish as Mish
 
-class ShuffleV2Block(nn.Module):
-    def __init__(self, inp, oup, stride, activation="ReLU"):
-        super(ShuffleV2Block, self).__init__()
 
-        if not (1 <= stride <= 3):
-            raise ValueError("illegal stride value")
-        self.stride = stride
+def autopad(k, p=None):  # kernel, padding
+    # Pad to 'same'
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+    return p
 
-        branch_features = oup // 2
-        assert (self.stride != 1) or (inp == branch_features << 1)
 
-        if self.stride > 1:
-            self.branch1 = nn.Sequential(
-                self.depthwise_conv(
-                    inp, inp, kernel_size=3, stride=self.stride, padding=1
-                ),
-                nn.BatchNorm2d(inp),
-                nn.Conv2d(
-                    inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False
-                ),
-                nn.BatchNorm2d(branch_features),
-                act_layers(activation),
-            )
-        else:
-            self.branch1 = nn.Sequential()
+def DWConv(c1, c2, k=1, s=1, act=True):
+    # Depthwise convolution
+    return Conv(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
 
-        self.branch2 = nn.Sequential(
-            nn.Conv2d(
-                inp if (self.stride > 1) else branch_features,
-                branch_features,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
-            nn.BatchNorm2d(branch_features),
-            act_layers(activation),
-            self.depthwise_conv(
-                branch_features,
-                branch_features,
-                kernel_size=3,
-                stride=self.stride,
-                padding=1,
-            ),
-            nn.BatchNorm2d(branch_features),
-            nn.Conv2d(
-                branch_features,
-                branch_features,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
-            nn.BatchNorm2d(branch_features),
-            act_layers(activation),
-        )
 
-    @staticmethod
-    def depthwise_conv(i, o, kernel_size, stride=1, padding=0, bias=False):
-        return nn.Conv2d(i, o, kernel_size, stride, padding, bias=bias, groups=i)
-
-    def forward(self, x):
-        if self.stride == 1:
-            x1, x2 = x.chunk(2, dim=1)
-            out = torch.cat((x1, self.branch2(x2)), dim=1)
-        else:
-            out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
-
-        out = channel_shuffle(out, 2)
-
-        return out
-
-def GsBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
+class GSConv(nn.Module):
+    # GSConv https://github.com/AlanLi1997/slim-neck-by-gsconv
+    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
         super().__init__()
-        self.conv1= CBL(in_ch, in_ch//2, 3, 1,True)
-        self.depthwise = nn.Conv2d(in_ch, out_channels = in_ch, kernel_size = 3, stride =1, groups = in_ch)
-        self.shuffle = ShuffleV2Block(in_ch, out_ch, stride = 1)
+        c_ = c2 // 2
+        self.cv1 = Conv(c1, c_, k, s, None, g, act)
+        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act)
 
     def forward(self, x):
-        x1 = self.conv1(x)
-        x2 = self.depthwise(x1)
-        x = self.shuffle(torch.concat((x1,x2), dim =0))
-        return x
+        x1 = self.cv1(x)
+        x2 = torch.cat((x1, self.cv2(x1)), 1)
+        # shuffle
+        # y = x2.reshape(x2.shape[0], 2, x2.shape[1] // 2, x2.shape[2], x2.shape[3])
+        # y = y.permute(0, 2, 1, 3, 4)
+        # return y.reshape(y.shape[0], -1, y.shape[3], y.shape[4])
+
+        b, n, h, w = x2.data.size()
+        b_n = b * n // 2
+        y = x2.reshape(b_n, 2, h * w)
+        y = y.permute(1, 0, 2)
+        y = y.reshape(2, -1, n // 2, h, w)
+
+        return torch.cat((y[0], y[1]), 1)
 
 
+class GSConvns(GSConv):
+    # GSConv with a normative-shuffle https://github.com/AlanLi1997/slim-neck-by-gsconv
+    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
+        super().__init__(c1, c2, k=1, s=1, g=1, act=True)
+        c_ = c2 // 2
+        self.shuf = nn.Conv2d(c_ * 2, c2, 1, 1, 0, bias=False)
+
+    def forward(self, x):
+        x1 = self.cv1(x)
+        x2 = torch.cat((x1, self.cv2(x1)), 1)
+        # normative-shuffle, TRT supported
+        return nn.ReLU(self.shuf(x2))
+
+
+class GSBottleneck(nn.Module):
+    # GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
+    def __init__(self, c1, c2, k=3, s=1):
+        super().__init__()
+        c_ = c2 // 2
+        # for lighting
+        self.conv_lighting = nn.Sequential(
+            GSConv(c1, c_, 1, 1),
+            GSConv(c_, c2, 3, 1, act=False))
+        self.shortcut = Conv(c1, c2, 1, 1, act=False)
+
+    def forward(self, x):
+        return self.conv_lighting(x) + self.shortcut(x)
+
+
+class GSBottleneckC(GSBottleneck):
+    # cheap GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
+    def __init__(self, c1, c2, k=3, s=1):
+        super().__init__(c1, c2, k, s)
+        self.shortcut = DWConv(c1, c2, 3, 1, act=False)
 
