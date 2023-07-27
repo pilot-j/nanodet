@@ -18,7 +18,7 @@ model:
       kernel_size: 5
       num_extra_level: 1
       use_depthwise: True
-      activation: ReLU
+      activation: LeakyReLU
     head:
       name: NanoDetPlusHead
       num_classes: 10
@@ -41,7 +41,7 @@ model:
           name: DistributionFocalLoss
           loss_weight: 0.25
         loss_bbox:
-          name: GIoULoss
+          name: CIoULoss
           loss_weight: 2.0
     # Auxiliary head, only use in training time.
     aux_head:
@@ -103,8 +103,8 @@ schedule:
   total_epochs: 75
   lr_schedule:
     name: MultiStepLR
-    milestones: [30,40,55,60]
-    gamma: 0.1
+    milestones: [35,55,60]
+    gamma: 0.55
   val_intervals: 2
 grad_clip: 35
 evaluator:
