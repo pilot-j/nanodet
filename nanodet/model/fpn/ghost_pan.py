@@ -1,20 +1,7 @@
-# Copyright 2021 RangiLyu.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 import torch
 import torch.nn as nn
 
-from ..backbone.ghostnet import GhostBottleneck
+from ..backbone.gsConv import Conv, DWConv, GSConv, GSBottleneck
 from ..module.conv import ConvModule, DepthwiseConvModule
 
 
@@ -35,8 +22,8 @@ class GhostBlocks(nn.Module):
         self,
         in_channels,
         out_channels,
-        expand=1,
-        kernel_size=5,
+        expand =1,
+        kernel_size=3,
         num_blocks=1,
         use_res=False,
         activation="LeakyReLU",
@@ -55,12 +42,10 @@ class GhostBlocks(nn.Module):
         blocks = []
         for _ in range(num_blocks):
             blocks.append(
-                GhostBottleneck(
+                GSBottleneck(
                     in_channels,
                     int(out_channels * expand),
-                    out_channels,
-                    dw_kernel_size=kernel_size,
-                    activation=activation,
+                    dw_kernel_size=kernel_size
                 )
             )
         self.blocks = nn.Sequential(*blocks)
@@ -70,8 +55,7 @@ class GhostBlocks(nn.Module):
         if self.use_res:
             out = out + self.reduce_conv(x)
         return out
-
-
+--------------
 class GhostPAN(nn.Module):
     """Path Aggregation Network with Ghost block.
 
