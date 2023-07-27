@@ -100,11 +100,11 @@ schedule:
     name: linear
     steps: 500
     ratio: 0.0001
-  total_epochs: 75
+  total_epochs: 100
   lr_schedule:
     name: MultiStepLR
-    milestones: [45,55,65]
-    gamma: 0.55
+    milestones: [40,50,70, 100]
+    gamma: 0.65
   val_intervals: 2
 grad_clip: 35
 evaluator:
