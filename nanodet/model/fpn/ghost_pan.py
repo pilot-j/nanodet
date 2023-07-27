@@ -45,7 +45,7 @@ class GhostBlocks(nn.Module):
                 GSBottleneck(
                     in_channels,
                     int(out_channels * expand),
-                    dw_kernel_size=kernel_size
+                    k=kernel_size
                 )
             )
         self.blocks = nn.Sequential(*blocks)
@@ -55,7 +55,7 @@ class GhostBlocks(nn.Module):
         if self.use_res:
             out = out + self.reduce_conv(x)
         return out
---------------
+
 class GhostPAN(nn.Module):
     """Path Aggregation Network with Ghost block.
 
