@@ -103,7 +103,7 @@ schedule:
   total_epochs: 75
   lr_schedule:
     name: MultiStepLR
-    milestones: [35,55,65]
+    milestones: [45,55,65]
     gamma: 0.55
   val_intervals: 2
 grad_clip: 35
