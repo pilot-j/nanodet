@@ -91,3 +91,20 @@ class GSBottleneckC(GSBottleneck):
         super().__init__(c1, c2, k, s)
         self.shortcut = DWConv(c1, c2, 3, 1, act=False)
 
+
+
+class VoVGSCSP(nn.Module):
+    # VoVGSCSP module with GSBottleneck
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c1, c_, 1, 1)
+        # self.gc1 = GSConv(c_, c_, 1, 1)
+        # self.gc2 = GSConv(c_, c_, 1, 1)
+        # self.gsb = GSBottleneck(c_, c_, 1, 1)
+        self.gsb = nn.Sequential(*(GSBottleneckC(c_, c_, e=1.0) for _ in range(n)))
+        self.res = Conv(c_, c_, 3, 1, act=False)
+        self.cv3 = Conv(2 * c_, c2, 1)  #
+
+
