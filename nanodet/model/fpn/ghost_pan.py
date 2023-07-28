@@ -22,7 +22,7 @@ class GhostBlocks(nn.Module):
         self,
         in_channels,
         out_channels,
-        expand =0.5,
+        expand =1,
         kernel_size=3,
         num_blocks=1,
         use_res=False,
@@ -42,10 +42,9 @@ class GhostBlocks(nn.Module):
         blocks = []
         for _ in range(num_blocks):
             blocks.append(
-                VoVGSCSP(
+                GSBottleneck(
                     in_channels,
                     out_channels,
-                    e = expand
                 )
             )
         self.blocks = nn.Sequential(*blocks)
