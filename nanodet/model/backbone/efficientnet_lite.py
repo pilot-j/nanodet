@@ -308,7 +308,7 @@ class EfficientNetLite(nn.Module):
                 idx += 1
             if j in self.out_stages:
                 if(j==6): 
-                    out.append(self.sppf(x))
+                    output.append(self.sppf(x))
                 else:
                     output.append(x)
         return output
