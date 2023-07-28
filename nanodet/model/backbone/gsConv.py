@@ -30,7 +30,6 @@ def DWConv(c1, c2, k=1, s=1, act=True):
     # Depthwise convolution
     return Conv(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
 
-
 class GSConv(nn.Module):
     # GSConv https://github.com/AlanLi1997/slim-neck-by-gsconv
     def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
@@ -71,13 +70,24 @@ class GSBottleneck(nn.Module):
         super().__init__()
         c_ = int(c2*e)
         # for lighting
+        self.gs= GSConv(c2,c2,1,1)
         self.conv_lighting = nn.Sequential(
             GSConv(c1, c_, 1, 1),
-            GSConvns(c_, c2, 3, 1, act=False))
+            GSConv(c_, c2, 3, 1, act=False))
         self.shortcut = Conv(c1, c2, 1, 1, act=False)
-
+        self.short_conv = nn.Sequential( 
+                nn.Conv2d(c1,c2, k, s, k//2, bias=False),
+                nn.BatchNorm2d(c2),
+                nn.Conv2d(c2, c2, kernel_size=(1,5), stride=1, padding=(0,2), groups=oup,bias=False),
+                nn.BatchNorm2d(c2),
+                nn.Conv2d(c2,c2, kernel_size=(5,1), stride=1, padding=(2,0), groups=oup,bias=False),
+                nn.BatchNorm2d(c2),
+            ) 
     def forward(self, x):
-        return self.conv_lighting(x) + self.shortcut(x)
+        x1 = self.conv_lighting(x)
+        x2 = self.short_conv(x)
+        y = x1*x2
+        return self.gs(y) + self.shortcut(x)
 
 
 class GSBottleneckC(GSBottleneck):
