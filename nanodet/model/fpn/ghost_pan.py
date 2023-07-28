@@ -22,7 +22,6 @@ class GhostBlocks(nn.Module):
         self,
         in_channels,
         out_channels,
-        expand =1,
         kernel_size=3,
         num_blocks=1,
         use_res=False,
@@ -44,7 +43,7 @@ class GhostBlocks(nn.Module):
             blocks.append(
                 GSBottleneck(
                     in_channels,
-                    int(out_channels * expand),
+                    int(out_channels),
                     k=kernel_size
                 )
             )
@@ -85,7 +84,6 @@ class GhostPAN(nn.Module):
         out_channels,
         use_depthwise=False,
         kernel_size=5,
-        expand=1,
         num_blocks=1,
         use_res=False,
         num_extra_level=0,
@@ -120,7 +118,6 @@ class GhostPAN(nn.Module):
                 GhostBlocks(
                     out_channels * 2,
                     out_channels,
-                    expand,
                     kernel_size=kernel_size,
                     num_blocks=num_blocks,
                     use_res=use_res,
