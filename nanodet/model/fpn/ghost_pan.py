@@ -21,8 +21,8 @@ class GhostBlocks(nn.Module):
     def __init__(
         self,
         in_channels,
-        expand =0.5,
         out_channels,
+        expand =0.5,
         kernel_size=3,
         num_blocks=1,
         use_res=False,
