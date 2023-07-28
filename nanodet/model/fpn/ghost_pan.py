@@ -43,8 +43,7 @@ class GhostBlocks(nn.Module):
             blocks.append(
                 VoVGSCSP(
                     in_channels,
-                    int(out_channels),
-                    k=kernel_size
+                    int(out_channels)
                 )
             )
         self.blocks = nn.Sequential(*blocks)
@@ -144,7 +143,6 @@ class GhostPAN(nn.Module):
                 GhostBlocks(
                     out_channels * 2,
                     out_channels,
-                    expand,
                     kernel_size=kernel_size,
                     num_blocks=num_blocks,
                     use_res=use_res,
