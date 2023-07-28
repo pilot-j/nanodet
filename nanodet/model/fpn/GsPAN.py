@@ -55,7 +55,7 @@ class GhostBlocks(nn.Module):
         if self.use_res:
             out = out + self.reduce_conv(x)
         return out
---------------
+
 class GhostPAN(nn.Module):
     """Path Aggregation Network with Ghost block.
 
