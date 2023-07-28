@@ -209,7 +209,7 @@ class EfficientNetLite(nn.Module):
         # Stem ---> inspired by ConvNext
         out_channels = 32
         self.stem = stem = nn.Sequential(
-            nn.Conv2d(in_chans, 32, kernel_size=4, stride=4),
+            nn.Conv2d(3, 32, kernel_size=3, stride=3),
             LayerNorm(32, eps=1e-6, data_format="channels_first"),
             act_layers(activation),
         )
