@@ -41,7 +41,7 @@ class GhostBlocks(nn.Module):
         blocks = []
         for _ in range(num_blocks):
             blocks.append(
-                GSBottleneck(
+                VoVGSCSP(
                     in_channels,
                     int(out_channels),
                     k=kernel_size
