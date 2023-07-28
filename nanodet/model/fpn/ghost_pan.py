@@ -21,6 +21,7 @@ class GhostBlocks(nn.Module):
     def __init__(
         self,
         in_channels,
+        expand =0.5,
         out_channels,
         kernel_size=3,
         num_blocks=1,
@@ -43,7 +44,8 @@ class GhostBlocks(nn.Module):
             blocks.append(
                 VoVGSCSP(
                     in_channels,
-                    int(out_channels)
+                    out_channels,
+                    e = expand
                 )
             )
         self.blocks = nn.Sequential(*blocks)
