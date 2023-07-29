@@ -7,6 +7,26 @@ from torch import nn
 
 from ..module.activation import act_layers
 
+#SPPF From yolov5
+class SPPF(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(SPPF, self).__init__()
+
+        c_ = int(in_channels//2)
+
+        self.c1 = nn.Conv2d(in_channels, c_, 1, 1, 0)
+        self.pool = nn.MaxPool2d(kernel_size=5, stride=1, padding=2)
+        self.c_out = nn.Conv2d(c_ * 4, out_channels, 1, 1, 0)
+        self.batch_norm1 = nn.BatchNorm2d(c_)
+        self.batch_norm2 = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        x = self.batch_norm1(self.c1(x))
+        pool1 = self.pool(x)
+        pool2 = self.pool(pool1)
+        pool3 = self.pool(pool2)
+
+        return self.batch_norm2(self.c_out(torch.cat([x, pool1, pool2, pool3], dim=1)))
 efficientnet_lite_params = {
     # width_coefficient, depth_coefficient, image_size, dropout_rate
     "efficientnet_lite0": [1.0, 1.0, 224, 0.2],
@@ -184,7 +204,7 @@ class EfficientNetLite(nn.Module):
             [4, 5, 2, 6, 112, 192, 0.25],  # stage5
             [1, 3, 1, 6, 192, 320, 0.25],  # stage6 - 1/32
         ]
-
+        self.sppf = SPPF(320,320)
         out_channels = 32
         self.stem = nn.Sequential(
             nn.Conv2d(3, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
@@ -261,6 +281,9 @@ class EfficientNetLite(nn.Module):
                 x = block(x, drop_connect_rate)
                 idx += 1
             if j in self.out_stages:
+                if(j==6):
+                    output.append(self.sppf(x))
+                else: 
                     output.append(x)
         return output
 
