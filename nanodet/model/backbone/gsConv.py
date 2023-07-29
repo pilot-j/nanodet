@@ -73,10 +73,11 @@ class GSBottleneck(nn.Module):
         self.gs= GSConv(c2,c2,1,1)
         self.conv_lighting = nn.Sequential(
             GSConv(c1, c_, 1, 1),
-            GSConv(c_, c2, 3, 1, act=False))
+            GSConv(c_, c2, 3, 1, act=False),
+            nn.BatchNorm2d(c2)
+        )
         self.shortcut = DWConv(c1, c2, 1, 1, act=False)
         self.short_conv = nn.Sequential( 
-                nn.Conv2d(c1,c2, k, s, k//2, groups =c2, bias=False),
                 nn.Conv2d(c2, c2, kernel_size=(1,5), stride=1, padding=(0,2), groups=c2,bias=False),
                 nn.BatchNorm2d(c2),
                 nn.Conv2d(c2,c2, kernel_size=(5,1), stride=1, padding=(2,0), groups=c2,bias=False),
@@ -85,7 +86,7 @@ class GSBottleneck(nn.Module):
     def forward(self, x):
         x1 = self.conv_lighting(x)
         x2 = self.short_conv(x)
-        y = x1*x2
+        y = x1+x2
         return self.gs(y) + self.shortcut(x)
 
 
