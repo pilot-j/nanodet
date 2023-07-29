@@ -41,7 +41,7 @@ model:
           name: DistributionFocalLoss
           loss_weight: 0.25
         loss_bbox:
-          name: CIoULoss
+          name: EIoULoss
           loss_weight: 2.0
     # Auxiliary head, only use in training time.
     aux_head:
