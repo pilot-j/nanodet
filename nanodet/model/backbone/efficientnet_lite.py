@@ -281,9 +281,6 @@ class EfficientNetLite(nn.Module):
                 x = block(x, drop_connect_rate)
                 idx += 1
             if j in self.out_stages:
-                if(j==6): 
-                    output.append(self.sppf(x))
-                else:
                     output.append(x)
         return output
 
