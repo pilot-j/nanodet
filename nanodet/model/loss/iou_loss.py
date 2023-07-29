@@ -345,7 +345,7 @@ def ciou_loss(pred, target, eps=1e-7):
 
     # CIoU
     cious = ious - (rho2 / c2 + v**2 / (1 - ious + v))
-    loss = (ious**(0.5))*(1 - cious) #focal cious
+    loss = (1 - cious) #focal cious
     return loss
 
 
