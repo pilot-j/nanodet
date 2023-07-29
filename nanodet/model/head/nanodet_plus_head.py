@@ -9,7 +9,7 @@ from nanodet.util import bbox2distance, distance2bbox, multi_apply, overlay_bbox
 
 from ...data.transform.warp import warp_boxes
 from ..loss.gfocal_loss import DistributionFocalLoss, QualityFocalLoss
-from ..loss.iou_loss import CIoULoss
+from ..loss.iou_loss import EIoULoss
 from ..module.conv import ConvModule, DepthwiseConvModule
 from ..module.init_weights import normal_init
 from ..module.nms import multiclass_nms
@@ -81,7 +81,7 @@ class NanoDetPlusHead(nn.Module):
         self.loss_dfl = DistributionFocalLoss(
             loss_weight=self.loss_cfg.loss_dfl.loss_weight
         )
-        self.loss_bbox = CIoULoss(loss_weight=self.loss_cfg.loss_bbox.loss_weight)
+        self.loss_bbox = EIoULoss(loss_weight=self.loss_cfg.loss_bbox.loss_weight)
         self._init_layers()
         self.init_weights()
 
