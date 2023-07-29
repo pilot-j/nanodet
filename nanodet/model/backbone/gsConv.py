@@ -2,7 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 class Conv(nn.Module):
     # Standard convolution
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
@@ -50,18 +50,6 @@ class GSConv(nn.Module):
         return torch.cat((y[0], y[1]), 1)
 
 
-class GSConvns(GSConv):
-    # GSConv with a normative-shuffle https://github.com/AlanLi1997/slim-neck-by-gsconv
-    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
-        super().__init__(c1, c2, k=1, s=1, g=1, act=True)
-        c_ = c2 // 2
-        self.shuf = nn.Conv2d(c_ * 2, c2, 1, 1, 0, bias=False)
-
-    def forward(self, x):
-        x1 = self.cv1(x)
-        x2 = torch.cat((x1, self.cv2(x1)), 1)
-        # normative-shuffle, TRT supported
-        return self.shuf(x2)
 
 
 class GSBottleneck(nn.Module):
@@ -71,14 +59,11 @@ class GSBottleneck(nn.Module):
         c_ = int(c2*e)
         # for lighting
         self.gs= GSConv(c2,c2,1,1)
-        self.conv_lighting = nn.Sequential(
-            GSConv(c1, c_, 1, 1),
-            GSConv(c_, c2, 3, 1, act=False),
-            nn.BatchNorm2d(c2)
-        )
-        self.shortcut = DWConv(c1, c2, 1, 1, act=False)
+        self.conv_lighting = GSConv(c1, c2, 3, 1, act = True)
+        self.shortcut = Conv(c1, c2, 1, 1, act=False)
         self.short_conv = nn.Sequential( 
-                DWConv(c1,c2),
+                Conv(c1,c2, 1, 1),
+                nn.BatchNorm2d(c2),
                 nn.Conv2d(c2, c2, kernel_size=(1,5), stride=1, padding=(0,2), groups=c2,bias=False),
                 nn.BatchNorm2d(c2),
                 nn.Conv2d(c2,c2, kernel_size=(5,1), stride=1, padding=(2,0), groups=c2,bias=False),
@@ -86,9 +71,10 @@ class GSBottleneck(nn.Module):
             ) 
     def forward(self, x):
         x1 = self.conv_lighting(x)
-        x2 = self.short_conv(x)
-        y = x1+x2
-        return self.gs(y) + self.shortcut(x)
+        DFC=nn.Sigmoid(self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2))) # Downsample --> sequential layer
+        y = F.interpolate(DFC, (x1.shape[-2], x1.shape[-1]), mode ='nearest')
+        out = x1*y
+        return self.gs(out) + self.shortcut(x)
 
 
 class GSBottleneckC(GSBottleneck):
