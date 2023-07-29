@@ -183,7 +183,7 @@ class EfficientNetLite(nn.Module):
         super(EfficientNetLite, self).__init__()
         assert set(out_stages).issubset(i for i in range(0, 7))
         assert model_name in efficientnet_lite_params
-        self.sppf= SPPF(320,320)
+        #self.sppf= SPPF(320,320)
         self.model_name = model_name
         # Batch norm parameters
         momentum = 0.01
@@ -204,7 +204,7 @@ class EfficientNetLite(nn.Module):
             [4, 5, 2, 6, 112, 192, 0.25],  # stage5
             [1, 3, 1, 6, 192, 320, 0.25],  # stage6 - 1/32
         ]
-        self.sppf = SPPF(320,320)
+        
         out_channels = 32
         self.stem = nn.Sequential(
             nn.Conv2d(3, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
@@ -281,10 +281,7 @@ class EfficientNetLite(nn.Module):
                 x = block(x, drop_connect_rate)
                 idx += 1
             if j in self.out_stages:
-                if(j==6):
-                    output.append(self.sppf(x))
-                else: 
-                    output.append(x)
+                output.append(x)
         return output
 
     def _initialize_weights(self, pretrain=True):
