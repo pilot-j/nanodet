@@ -58,13 +58,24 @@ class GSBottleneck(nn.Module):
         super().__init__()
         c_ = int(c2*e)
         # for lighting
-        self.conv_lighting = nn.Sequential(
-            GSConv(c1, c_, 1, 1),
-            GSConv(c_, c2, 3, 1, act=False))
+        self.fn = nn.Sigmoid()
+        self.conv_lighting = GSConv(c1, c2, 3, 1, act = True)
         self.shortcut = Conv(c1, c2, 1, 1, act=False)
-
+        self.short_conv = nn.Sequential( 
+                Conv(c1,c2, 1, 1),
+                nn.BatchNorm2d(c2),
+                nn.Conv2d(c2, c2, kernel_size=(1,5), stride=1, padding=(0,2), groups=c2,bias=False),
+                nn.BatchNorm2d(c2),
+                nn.Conv2d(c2,c2, kernel_size=(5,1), stride=1, padding=(2,0), groups=c2,bias=False),
+                nn.BatchNorm2d(c2),
+            ) 
+    
     def forward(self, x):
-        return self.conv_lighting(x) + self.shortcut(x)
+        x1 = self.conv_lighting(x)
+        DFC=self.fn(self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2))) # Downsample --> sequential layer
+        y = F.interpolate(DFC, (x1.shape[-2], x1.shape[-1]), mode ='nearest')
+        out = x1*y
+        return self.gs(out) + self.shortcut(x)
 
 
 class GSBottleneckC(GSBottleneck):
