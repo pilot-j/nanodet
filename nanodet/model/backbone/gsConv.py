@@ -78,7 +78,7 @@ class GSBottleneck(nn.Module):
         )
         self.shortcut = DWConv(c1, c2, 1, 1, act=False)
         self.short_conv = nn.Sequential( 
-                nn.DWConv(c1,c2),
+                DWConv(c1,c2),
                 nn.Conv2d(c2, c2, kernel_size=(1,5), stride=1, padding=(0,2), groups=c2,bias=False),
                 nn.BatchNorm2d(c2),
                 nn.Conv2d(c2,c2, kernel_size=(5,1), stride=1, padding=(2,0), groups=c2,bias=False),
