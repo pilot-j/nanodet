@@ -288,7 +288,7 @@ class NanoDetPlusHead(nn.Module):
             loss_bbox = reg_preds.sum() * 0
             loss_dfl = reg_preds.sum() * 0
 
-        loss = loss_qfl + (1.5)*loss_bbox + loss_dfl
+        loss = loss_qfl + loss_bbox + loss_dfl
         loss_states = dict(loss_qfl=loss_qfl, loss_bbox=loss_bbox, loss_dfl=loss_dfl)
         return loss, loss_states
 
