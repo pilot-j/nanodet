@@ -53,8 +53,19 @@ class GSConv(nn.Module):
 
 
 class GSBottleneck(nn.Module):
-    # GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
     def __init__(self, c1, c2, k=3, s=1, e=0.5):
+        super().__init__()
+        c_ = int(c2*e)
+        # for lighting
+        self.conv_lighting = nn.Sequential(
+            GSConv(c1, c_, 1, 1),
+            GSConv(c_, c2, 3, 1, act=False))
+        self.shortcut = Conv(c1, c2, 1, 1, act=False)
+
+    def forward(self, x):
+        return self.conv_lighting(x) + self.shortcut(x)
+    # GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
+   ''' def __init__(self, c1, c2, k=3, s=1, e=0.5):
         super().__init__()
         c_ = int(c2*e)
         # for lighting
@@ -76,7 +87,7 @@ class GSBottleneck(nn.Module):
         y = F.interpolate(DFC, (x1.shape[-2], x1.shape[-1]), mode ='nearest')
         out = x1*y
         return self.gs(out) + self.shortcut(x)
-
+'''
 
 class GSBottleneckC(GSBottleneck):
     # cheap GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
