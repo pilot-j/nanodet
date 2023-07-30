@@ -55,6 +55,7 @@ class GSConv(nn.Module):
 class GSBottleneck(nn.Module):
     def __init__(self, c1, c2, k=3, s=1, e=0.5):
         super().__init__()
+        self.gs = GSConv(c2,c2)
         self.c2 = c2
         c_ = int(c2*e)
         self.fn = nn.Mish()
@@ -80,7 +81,7 @@ class GSBottleneck(nn.Module):
         out2 = torch.cat((self.shortcut1(x), self.shortcut2(x)), dim =1)
         out2 = out2[:, :self.c2,:,:]
         
-        return GsConv(out) + out2
+        return self.gs(out1) + out2
 
 class GSBottleneckC(GSBottleneck):
     # cheap GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
