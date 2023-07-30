@@ -55,26 +55,17 @@ class GSConv(nn.Module):
 class GSBottleneck(nn.Module):
     def __init__(self, c1, c2, k=3, s=1, e=0.5):
         super().__init__()
+        self.c2 = c2
         c_ = int(c2*e)
-        # for lighting
+        self.fn = nn.Mish()
         self.conv_lighting = nn.Sequential(
             GSConv(c1, c_, 1, 1),
-            GSConv(c_, c2, 3, 1, act=False))
-        self.shortcut = Conv(c1, c2, 1, 1, act=False)
-
-    def forward(self, x):
-        return self.conv_lighting(x) + self.shortcut(x)
-    # GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
-   ''' def __init__(self, c1, c2, k=3, s=1, e=0.5):
-        super().__init__()
-        c_ = int(c2*e)
-        # for lighting
-        self.fn = nn.Sigmoid()
-        self.conv_lighting = GSConv(c1, c2, 3, 1, act = True)
-        self.shortcut = Conv(c1, c2, 1, 1, act=False)
-        self.short_conv = nn.Sequential( 
-                Conv(c1,c2, 1, 1),
-                nn.BatchNorm2d(c2),
+            GSConv(c_, c2, 3, 1, act=False)
+            )
+        
+        self.shortcut1 = DWConv(c1, c2, 1, 1, act=False)
+        self.shortcut2 = DWConv(c1,c2, 3,1 , p=1, act = False)
+        self.short_conv = nn.Sequential(
                 nn.Conv2d(c2, c2, kernel_size=(1,5), stride=1, padding=(0,2), groups=c2,bias=False),
                 nn.BatchNorm2d(c2),
                 nn.Conv2d(c2,c2, kernel_size=(5,1), stride=1, padding=(2,0), groups=c2,bias=False),
@@ -85,9 +76,11 @@ class GSBottleneck(nn.Module):
         x1 = self.conv_lighting(x)
         DFC=self.fn(self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2))) # Downsample --> sequential layer
         y = F.interpolate(DFC, (x1.shape[-2], x1.shape[-1]), mode ='nearest')
-        out = x1*y
-        return self.gs(out) + self.shortcut(x)
-'''
+        out1 = x1*y
+        out2 = torch.cat((self.shortcut1(x), self.shortcut2(x)), dim =1)
+        out2 = out2[:, :self.c2,:,:]
+        
+        return GsConv(out) + out2
 
 class GSBottleneckC(GSBottleneck):
     # cheap GS Bottleneck https://github.com/AlanLi1997/slim-neck-by-gsconv
@@ -97,21 +90,5 @@ class GSBottleneckC(GSBottleneck):
 
 
 
-class VoVGSCSP(nn.Module):
-    # VoVGSCSP module with GSBottleneck
-    def __init__(self, c1, c2,shortcut=True, g=1, e=0.5):
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = Conv(c1, c_, 1, 1)
-        self.gc1 = GSConv(c_, c_, 1, 1)
-        self.gc2 = GSConv(c_, c_, 1, 1)
-        self.gsb = GSBottleneck(c_, c_, 1, 1)
-        
-        self.res = Conv(c_, c_, 3, 1, act=False)
-        self.cv3 = Conv(2 * c_, c2, 1)
-    def forward(self, x):
-        x1 = self.gsb(self.cv1(x))
-        y = self.cv2(x)
-        return self.cv3(torch.cat((y, x1), dim=1))
+
 
