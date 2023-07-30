@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from ..backbone.gsConv import Conv, DWConv, GSConv, GSBottleneck, VoVGSCSP
+from ..backbone.gsConv import Conv, DWConv, GSConv, GSBottleneck
 from ..module.conv import ConvModule, DepthwiseConvModule
 
 
