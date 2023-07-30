@@ -5,7 +5,8 @@ model:
     name: ExpMovingAverager
     decay: 0.9998
   arch:
-    name: OneStageDetector
+    name: NanoDetPlus
+    detach_epoch: 10
     backbone:
       name: EfficientNetLite
       model_name: efficientnet_lite0
