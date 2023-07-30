@@ -183,6 +183,9 @@ class EfficientNetLite(nn.Module):
         super(EfficientNetLite, self).__init__()
         assert set(out_stages).issubset(i for i in range(0, 7))
         assert model_name in efficientnet_lite_params
+        self.gs1 = GSBottleneck_V2(40,40)
+        self.gs2=   GSBottleneck_V2(112,112)
+        self.gs3 = GSBottleneck_V2(320,320)
         #self.sppf= SPPF(320,320)
         self.model_name = model_name
         # Batch norm parameters
@@ -280,8 +283,14 @@ class EfficientNetLite(nn.Module):
                     drop_connect_rate *= float(idx) / len(self.blocks)
                 x = block(x, drop_connect_rate)
                 idx += 1
+            
             if j in self.out_stages:
-                output.append(x)
+                if(j==2):
+                    output.append(self.gs1(x))
+                elif(j==4):
+                    output.append(self.gs2(x))
+                else:
+                    output.append(self.gs3(x))
         return output
 
     def _initialize_weights(self, pretrain=True):
