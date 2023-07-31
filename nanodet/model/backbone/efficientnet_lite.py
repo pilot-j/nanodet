@@ -102,9 +102,16 @@ class MBConvBlock(nn.Module):
 
         # Expansion phase
         oup = inp * expand_ratio  # number of output channels
-        if expand_ratio != 1:
+        '''if expand_ratio != 1:
             self._expand_conv = nn.Conv2d(
                 in_channels=inp, out_channels=oup, kernel_size=1, bias=False
+            )
+            self._bn0 = nn.BatchNorm2d(
+                num_features=oup, momentum=self._momentum, eps=self._epsilon
+            )'''
+        if expand_ratio != 1:
+            self._expand_conv = nn.Conv2d(
+                in_channels=inp, out_channels=oup, kernel_size=1,  groups=oup, bias=False
             )
             self._bn0 = nn.BatchNorm2d(
                 num_features=oup, momentum=self._momentum, eps=self._epsilon
@@ -136,7 +143,7 @@ class MBConvBlock(nn.Module):
 
         # Output phase
         self._project_conv = nn.Conv2d(
-            in_channels=oup, out_channels=final_oup, kernel_size=1, bias=False
+            in_channels=oup, out_channels=final_oup, kernel_size=1, groups = final_oup, bias=False
         )
         self._bn2 = nn.BatchNorm2d(
             num_features=final_oup, momentum=self._momentum, eps=self._epsilon
