@@ -4,7 +4,7 @@ import torch
 import torch.functional as F
 import torch.utils.model_zoo as model_zoo
 from torch import nn
-
+from ..backbone.gsConv import GSConv
 from ..module.activation import act_layers
 
 #SPPF From yolov5
@@ -102,16 +102,9 @@ class MBConvBlock(nn.Module):
 
         # Expansion phase
         oup = inp * expand_ratio  # number of output channels
-        '''if expand_ratio != 1:
-            self._expand_conv = nn.Conv2d(
-                in_channels=inp, out_channels=oup, kernel_size=1, bias=False
-            )
-            self._bn0 = nn.BatchNorm2d(
-                num_features=oup, momentum=self._momentum, eps=self._epsilon
-            )'''
         if expand_ratio != 1:
             self._expand_conv = nn.Conv2d(
-                in_channels=inp, out_channels=oup, kernel_size=1,  groups=oup, bias=False
+                in_channels=inp, out_channels=oup, kernel_size=1, bias=False
             )
             self._bn0 = nn.BatchNorm2d(
                 num_features=oup, momentum=self._momentum, eps=self._epsilon
@@ -142,13 +135,23 @@ class MBConvBlock(nn.Module):
             )
 
         # Output phase
-        self._project_conv = nn.Conv2d(
-            in_channels=oup, out_channels=final_oup, kernel_size=1, groups = final_oup, bias=False
+        self._project_conv = GSConv(
+            oup, final_oup, g = final_oup, act =True
         )
         self._bn2 = nn.BatchNorm2d(
             num_features=final_oup, momentum=self._momentum, eps=self._epsilon
         )
         self._relu = act_layers(activation)
+        self.gs = GSConv(oup, oup)
+        self.fn = nn.Mish()
+        self.short_conv = nn.Sequential(
+                nn.Conv2d(oup,oup,kernel_size= 1, stride = 1, bias = False),
+                nn.BatchNorm2d(oup),
+                nn.Conv2d(oup,oup, kernel_size=(1,5), stride=1, padding=(0,2), groups=c2,bias=False),
+                nn.BatchNorm2d(oup),
+                nn.Conv2d(oup,oup, kernel_size=(5,1), stride=1, padding=(2,0), groups=c2,bias=False),
+                nn.BatchNorm2d(oup),
+            ) 
 
     def forward(self, x, drop_connect_rate=None):
         """
@@ -162,12 +165,12 @@ class MBConvBlock(nn.Module):
         if self.expand_ratio != 1:
             x = self._relu(self._bn0(self._expand_conv(x)))
         x = self._relu(self._bn1(self._depthwise_conv(x)))
-
+        
         # Squeeze and Excitation
         if self.has_se:
-            x_squeezed = F.adaptive_avg_pool2d(x, 1)
-            x_squeezed = self._se_expand(self._relu(self._se_reduce(x_squeezed)))
-            x = torch.sigmoid(x_squeezed) * x
+            DFC=self.fn(self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2)))
+            x_squeezed =F.interpolate(DFC, (x.shape[-2], x.shape[-1]), mode ='nearest')
+            x = (x_squeezed) * self.gs(x)
 
         x = self._bn2(self._project_conv(x))
 
@@ -190,10 +193,7 @@ class EfficientNetLite(nn.Module):
         super(EfficientNetLite, self).__init__()
         assert set(out_stages).issubset(i for i in range(0, 7))
         assert model_name in efficientnet_lite_params
-        # self.gs1 = GSBottleneck_V2(40,40)
-        # self.gs2=   GSBottleneck_V2(112,112)
-        # self.gs3 = GSBottleneck_V2(320,320)
-        #self.sppf= SPPF(320,320)
+        
         self.model_name = model_name
         # Batch norm parameters
         momentum = 0.01
@@ -272,7 +272,7 @@ class EfficientNetLite(nn.Module):
                         stride,
                         expand_ratio,
                         se_ratio,
-                        has_se=False,
+                        has_se=True,
                     )
                 )
 
