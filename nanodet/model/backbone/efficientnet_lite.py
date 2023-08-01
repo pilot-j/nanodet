@@ -4,29 +4,9 @@ import torch
 import torch.functional as F
 import torch.utils.model_zoo as model_zoo
 from torch import nn
-from ..backbone.gsConv import GSConv
+
 from ..module.activation import act_layers
 
-#SPPF From yolov5
-class SPPF(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(SPPF, self).__init__()
-
-        c_ = int(in_channels//2)
-
-        self.c1 = nn.Conv2d(in_channels, c_, 1, 1, 0)
-        self.pool = nn.MaxPool2d(kernel_size=5, stride=1, padding=2)
-        self.c_out = nn.Conv2d(c_ * 4, out_channels, 1, 1, 0)
-        self.batch_norm1 = nn.BatchNorm2d(c_)
-        self.batch_norm2 = nn.BatchNorm2d(out_channels)
-
-    def forward(self, x):
-        x = self.batch_norm1(self.c1(x))
-        pool1 = self.pool(x)
-        pool2 = self.pool(pool1)
-        pool3 = self.pool(pool2)
-
-        return self.batch_norm2(self.c_out(torch.cat([x, pool1, pool2, pool3], dim=1)))
 efficientnet_lite_params = {
     # width_coefficient, depth_coefficient, image_size, dropout_rate
     "efficientnet_lite0": [1.0, 1.0, 224, 0.2],
@@ -76,104 +56,7 @@ def drop_connect(x, drop_connect_rate, training):
     x = (x / keep_prob) * binary_mask
     return x
 
-class MBConvBlock_dfc(nn.Module):
-    def __init__(
-        self,
-        inp,
-        final_oup,
-        k,
-        s,
-        expand_ratio,
-        se_ratio,
-        has_se=True,
-        activation="ReLU6",
-    ):
-        super(MBConvBlock_dfc, self).__init__()
 
-        self._momentum = 0.01
-        self._epsilon = 1e-3
-        self.input_filters = inp
-        self.output_filters = final_oup
-        self.stride = s
-        self.expand_ratio = expand_ratio
-        self.has_se = has_se
-        self.id_skip = True  # skip connection and drop connect
-
-        # Expansion phase
-        oup = inp * expand_ratio  # number of output channels
-        if expand_ratio != 1:
-            self._expand_conv = nn.Conv2d(
-                in_channels=inp, out_channels=oup, kernel_size=1, bias=False
-            )
-            self._bn0 = nn.BatchNorm2d(
-                num_features=oup, momentum=self._momentum, eps=self._epsilon
-            )
-
-        # Depthwise convolution phase
-        self._depthwise_conv = nn.Conv2d(
-            in_channels=oup,
-            out_channels=oup,
-            groups=oup,  # groups makes it depthwise
-            kernel_size=k,
-            padding=(k - 1) // 2,
-            stride=s,
-            bias=False,
-        )
-        self._bn1 = nn.BatchNorm2d(
-            num_features=oup, momentum=self._momentum, eps=self._epsilon
-        )
-
-
-        # Output phase
-        self._project_conv = nn.Conv2d(
-            in_channels=oup, out_channels=final_oup, kernel_size=1, bias=False
-        )
-        self._bn2 = nn.BatchNorm2d(
-            num_features=final_oup, momentum=self._momentum, eps=self._epsilon
-        )
-        self._relu = act_layers(activation)
-        #self.gs = GSConv(oup, oup)
-        self.fn = nn.Mish()
-        self.short_conv = nn.Sequential(
-                nn.Conv2d(oup,oup,kernel_size= 1, stride = 1, bias = False),
-                nn.BatchNorm2d(oup),
-                nn.Conv2d(oup,oup, kernel_size=(1,5), stride=1, padding=(0,2), groups=c2,bias=False),
-                nn.BatchNorm2d(oup),
-                nn.Conv2d(oup,oup, kernel_size=(5,1), stride=1, padding=(2,0), groups=c2,bias=False),
-                nn.BatchNorm2d(oup),
-            ) 
-
-    def forward(self, x, drop_connect_rate=None):
-        """
-        :param x: input tensor
-        :param drop_connect_rate: drop connect rate (float, between 0 and 1)
-        :return: output of block
-        """
-
-        # Expansion and Depthwise Convolution
-        identity = x
-        if self.expand_ratio != 1:
-            x = self._relu(self._bn0(self._expand_conv(x)))
-        x = self._relu(self._bn1(self._depthwise_conv(x)))
-        
-        # Squeeze and Excitation
-        if self.has_se:
-            DFC=self.fn(self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2)))
-            x_squeezed =F.interpolate(DFC, (x.shape[-2], x.shape[-1]), mode ='nearest')
-            x = (x_squeezed) * x
-
-        x = self._bn2(self._project_conv(x))
-
-        # Skip connection and drop connect
-        if (
-            self.id_skip
-            and self.stride == 1
-            and self.input_filters == self.output_filters
-        ):
-            if drop_connect_rate:
-                x = drop_connect(x, drop_connect_rate, training=self.training)
-            x += identity  # skip connection
-        return x
 class MBConvBlock(nn.Module):
     def __init__(
         self,
@@ -280,7 +163,7 @@ class EfficientNetLite(nn.Module):
         super(EfficientNetLite, self).__init__()
         assert set(out_stages).issubset(i for i in range(0, 7))
         assert model_name in efficientnet_lite_params
-        
+
         self.model_name = model_name
         # Batch norm parameters
         momentum = 0.01
@@ -301,7 +184,8 @@ class EfficientNetLite(nn.Module):
             [4, 5, 2, 6, 112, 192, 0.25],  # stage5
             [1, 3, 1, 6, 192, 320, 0.25],  # stage6 - 1/32
         ]
-        
+
+        # Stem
         out_channels = 32
         self.stem = nn.Sequential(
             nn.Conv2d(3, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
@@ -334,9 +218,10 @@ class EfficientNetLite(nn.Module):
                 if i == 0 or i == len(mb_block_settings) - 1
                 else round_repeats(num_repeat, depth_multiplier)
             )
-            for i in (2,3,4):
-                stage.append(
-                MBConvBlock_dfc(
+
+            # The first block needs to take care of stride and filter size increase.
+            stage.append(
+                MBConvBlock(
                     input_filters,
                     output_filters,
                     kernal_size,
@@ -351,25 +236,16 @@ class EfficientNetLite(nn.Module):
                 stride = 1
             for _ in range(num_repeat - 1):
                 stage.append(
-                    MBConvBlock_dfc(
+                    MBConvBlock(
                         input_filters,
                         output_filters,
                         kernal_size,
                         stride,
                         expand_ratio,
                         se_ratio,
-                        has_se=True,
+                        has_se=False,
                     )
                 )
-            else:
-                stage.append(
-                MBConvBlock(input_filters,output_filters,kernal_size,stride,expand_ratio,se_ratio,has_se=False,))
-                if num_repeat > 1:
-                input_filters = output_filters
-                stride = 1
-                for _ in range(num_repeat - 1):
-                stage.append(
-                MBConvBlock(input_filters,output_filters,kernal_size,stride,expand_ratio,se_ratio,has_se=False,))
 
             self.blocks.append(stage)
         self._initialize_weights(pretrain)
@@ -385,7 +261,6 @@ class EfficientNetLite(nn.Module):
                     drop_connect_rate *= float(idx) / len(self.blocks)
                 x = block(x, drop_connect_rate)
                 idx += 1
-            
             if j in self.out_stages:
                 output.append(x)
         return output
