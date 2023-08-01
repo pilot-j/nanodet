@@ -42,12 +42,9 @@ class GhostBlocks(nn.Module):
         blocks = []
         for _ in range(num_blocks):
             blocks.append(
-                GhostBottleneck(
+                GSBottleneck(
                     in_channels,
-                    int(out_channels * expand),
                     out_channels,
-                    dw_kernel_size=kernel_size,
-                    activation=activation,
                 )
             )
         self.blocks = nn.Sequential(*blocks)
