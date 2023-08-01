@@ -124,15 +124,6 @@ class MBConvBlock(nn.Module):
             num_features=oup, momentum=self._momentum, eps=self._epsilon
         )
 
-        # Squeeze and Excitation layer, if desired
-        if self.has_se:
-            num_squeezed_channels = max(1, int(inp * se_ratio))
-            self._se_reduce = nn.Conv2d(
-                in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1
-            )
-            self._se_expand = nn.Conv2d(
-                in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1
-            )
 
         # Output phase
         self._project_conv = GSConv(
