@@ -43,5 +43,7 @@ def build_backbone(cfg):
         return RepVGG(**backbone_cfg)
     elif name == "TIMMWrapper":
         return TIMMWrapper(**backbone_cfg)
+    elif name == "GhostNetV2":
+        return GhostNetV2(**backbone_cfg)
     else:
         raise NotImplementedError
