@@ -1,0 +1,120 @@
+# NanoDet-g-416 is designed for edge NPU, GPU or TPU with high parallel computing power but low memory bandwidth
+# COCO mAP(0.5:0.95) = 22.9
+# Flops = 4.2B
+# Params = 3.8M
+# COCO pre-trained weight link: https://drive.google.com/file/d/10uW7oqZKw231l_tr4C1bJWkbCXgBf7av/view?usp=sharing
+save_dir: /content/drive/MyDrive/results_exp
+model:
+  arch:
+    name: OneStageDetector
+    backbone:
+      name: CustomCspNet
+      net_cfg: [[ 'Conv', 3, 32, 3, 2],  # 1/2
+                [ 'MaxPool', 3, 2 ],  # 1/4
+                [ 'CspBlock', 32, 1, 3, 1 ],  # 1/4
+                [ 'CspBlock', 64, 2, 3, 2 ],  # 1/8
+                [ 'CspBlock', 128, 2, 3, 2 ],  # 1/16
+                [ 'CspBlock', 256, 3, 3, 2 ]]  # 1/32
+      out_stages: [3,4,5]
+      activation: LeakyReLU
+    fpn:
+      name: GhostPAN
+      in_channels: [128, 256,512]
+      out_channels: 96
+      kernel_size: 5
+      num_extra_level: 1
+      use_depthwise: True
+      activation: LeakyReLU
+    head:
+      name: NanoDetPlusHead
+      num_classes: 10
+      input_channel: 96
+      feat_channels: 96
+      stacked_convs: 3 
+      kernel_size: 5
+      strides: [8, 16, 32, 64]
+      activation: ReLU
+      reg_max: 7
+      norm_cfg:
+        type: BN
+      loss:
+        loss_qfl:
+          name: QualityFocalLoss
+          use_sigmoid: True
+          beta: 2.0
+          loss_weight: 1.0
+        loss_dfl:
+          name: DistributionFocalLoss
+          loss_weight: 0.25
+        loss_bbox:
+          name: CIoULoss
+          loss_weight: 2.0
+    # Auxiliary head, only use in training time.
+    aux_head:
+      name: SimpleConvHead
+      num_classes: 10
+      input_channel: 96
+      feat_channels: 96
+      stacked_convs: 4
+      strides: [8, 16, 32, 64]
+      activation: ReLU
+      reg_max: 7
+class_names: &class_names ['dozer', 'backhoe_loader', 'wheel_loader', 'excavator', 'dump_truck', 'grader', 'compactor', 'mobile_crane', 'cement_truck', 'tower_crane']  #Please fill in the category names (not include background category)
+data:
+  train:
+    name: XMLDataset
+    class_names: *class_names
+    img_path: /content/nanodet/dataset_voc/train/images  #Please fill in train image path
+    ann_path: /content/nanodet/dataset_voc/train/labels  #Please fill in train xml path
+    input_size: [416,416] #[w,h]
+    keep_ratio: True
+    pipeline:
+      perspective: 0.0
+      scale: [0.6, 1.4]
+      stretch: [[1, 1], [1, 1]]
+      rotation: 0
+      shear: 0
+      translate: 0.2
+      flip: 0.5
+      brightness: 0.2
+      contrast: [0.8, 1.2]
+      saturation: [0.8, 1.2]
+      normalize: [[127.0, 127.0, 127.0], [128.0, 128.0, 128.0]]
+  val:
+    name: XMLDataset
+    class_names: *class_names
+    img_path: /content/nanodet/dataset_voc/val/images #Please fill in val image path
+    ann_path: /content/nanodet/dataset_voc/val/labels #Please fill in val xml path
+    input_size: [416,416] #[w,h]
+    keep_ratio: True
+    pipeline:
+      normalize: [[127.0, 127.0, 127.0], [128.0, 128.0, 128.0]]
+device:
+  gpu_ids: [0] # Set like [0, 1, 2, 3] if you have multi-GPUs
+  workers_per_gpu: 2
+  batchsize_per_gpu: 16
+  precision: 32 # set to 16 to use AMP training
+schedule:
+#  resume:
+#  load_model: YOUR_MODEL_PATH
+  optimizer:
+    name: AdamW
+    lr: 0.001
+    weight_decay: 0.05
+  warmup:
+    name: linear
+    steps: 500
+    ratio: 0.0001
+  total_epochs: 100
+  lr_schedule:
+    name: MultiStepLR
+    milestones: [55, 70, 100]
+    gamma: 0.85
+  val_intervals: 2
+grad_clip: 35
+evaluator:
+  name: CocoDetectionEvaluator
+  save_key: mAP
+
+log:
+  interval: 500
