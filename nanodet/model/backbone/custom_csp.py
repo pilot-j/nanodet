@@ -14,7 +14,7 @@
 
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 from ..module.conv import ConvModule
 
 
@@ -26,6 +26,7 @@ class TinyResBlock(nn.Module):
         assert in_channels % 2 == 0
         assert res_type in ["concat", "add"]
         self.res_type = res_type
+        self.fn = nn.Sigmoid()
         self.in_conv = ConvModule(
             in_channels,
             in_channels // 2,
@@ -63,7 +64,8 @@ class TinyResBlock(nn.Module):
     def forward(self, x):
         x = self.in_conv(x)
         x1 = self.mid_conv(x)
-        x1=self.fn(self.short_conv(F.avg_pool2d(x1,kernel_size=2,stride=2)))
+        DFC=self.fn(self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2)))
+        x = F.interpolate(DFC, (x.shape[-2], x.shape[-1]), mode ='nearest')
         if self.res_type == "add":
             return self.out_conv(x + x1)
         else:
