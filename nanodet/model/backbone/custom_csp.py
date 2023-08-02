@@ -42,6 +42,14 @@ class TinyResBlock(nn.Module):
             norm_cfg=norm_cfg,
             activation=activation,
         )
+        self.short_conv = nn.Sequential(
+                nn.Conv2d(in_channels // 2,in_channels // 2,kernel_size= 1, stride = 1, bias = False),
+                nn.BatchNorm2d(in_channels // 2),
+                nn.Conv2d(in_channels // 2,in_channels // 2, kernel_size=(1,5), stride=1, padding=(0,2), groups=in_channels // 2,bias=False),
+                nn.BatchNorm2d(in_channels // 2),
+                nn.Conv2d(in_channels // 2,in_channels // 2, kernel_size=(5,1), stride=1, padding=(2,0), groups=in_channels // 2,bias=False),
+                nn.BatchNorm2d(in_channels // 2),
+            ) 
         if res_type == "add":
             self.out_conv = ConvModule(
                 in_channels // 2,
@@ -55,6 +63,7 @@ class TinyResBlock(nn.Module):
     def forward(self, x):
         x = self.in_conv(x)
         x1 = self.mid_conv(x)
+        x1=self.fn(self.short_conv(F.avg_pool2d(x1,kernel_size=2,stride=2)))
         if self.res_type == "add":
             return self.out_conv(x + x1)
         else:
