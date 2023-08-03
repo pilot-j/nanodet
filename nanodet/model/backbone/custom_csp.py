@@ -33,12 +33,12 @@ class SPPF(nn.Module):
         return self.batch_norm2(self.c_out(torch.cat([x, pool1, pool2, pool3], dim=1)))
 class TinyResBlock(nn.Module):
     def __init__(
-        self, in_channels, kernel_size, expand = 2, norm_cfg, activation, res_type="add"
+        self, in_channels, kernel_size, expand , norm_cfg, activation, res_type="add"
     ):
         super(TinyResBlock, self).__init__()
         assert in_channels % 2 == 0
-        self.mid_ch = expand * in_channels
         assert res_type in ["concat", "add"]
+        self.mid_ch = expand * in_channels
         self.res_type = res_type
         self.in_conv = ConvModule(
             in_channels,
@@ -56,8 +56,7 @@ class TinyResBlock(nn.Module):
             norm_cfg=norm_cfg,
             activation=activation,
         )
-        if res_type == "add":
-            self.out_conv = ConvModule(
+        self.out_conv = ConvModule(
                 expand* in_channels,
                 in_channels,
                 kernel_size,
@@ -75,10 +74,10 @@ class TinyResBlock(nn.Module):
             
 class TinyResBlock_attn(TinyResBlock):
     def __init__(
-        self, in_channels, kernel_size, norm_cfg, activation, res_type="add"
+        self, in_channels, kernel_size, expand , norm_cfg, activation, res_type="add"
     ):
-        super(TinyResBlock_attn, self).__init__()
-        
+        super(TinyResBlock_attn, self).__init__( in_channels, kernel_size, expand , norm_cfg, activation, res_type)
+        self.fn = nn.Sigmoid()
         self.short_conv = nn.Sequential(
                 nn.Conv2d(in_channels ,in_channels,kernel_size= 1, stride = 1, bias = False),
                 nn.BatchNorm2d(in_channels),
@@ -182,7 +181,7 @@ class CustomCspNet(nn.Module):
                 )
             elif stage_cfg[0] =="SPPF":
                 in_channels, out_channels = stage_cfg[1:]
-                stage = SPPF(int_channels, out_channels)
+                stage = SPPF(in_channels, out_channels)
             else:
                 raise ModuleNotFoundError
             self.stages.append(stage)
@@ -198,14 +197,11 @@ class CustomCspNet(nn.Module):
 
     def _init_weight(self):
         for m in self.modules():
-            if self.activation == "LeakyReLU":
-                nonlinearity = "leaky_relu"
-            else:
-                nonlinearity = "relu"
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity=nonlinearity
+                    m.weight, mode="fan_out", nonlinearity="relu"
                 )
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+
