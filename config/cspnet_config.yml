@@ -9,18 +9,19 @@ model:
     name: OneStageDetector
     backbone:
       name: CustomCspNet
-      net_cfg: [[ 'Conv', 3, 32, 3, 2],  # 1/2
+      net_cfg: [[ 'Conv', 3, 32, 3, 2, "ReLU"],  # 1/2
                 [ 'MaxPool', 3, 2 ],  # 1/4
-                [ 'CspBlock', 32, 2, 3, 1 ],  # 1/4
-                [ 'CspBlock', 64, 3, 3, 2 ],  # 1/8
-                [ 'CspBlock', 128, 3, 3, 2 ],  # 1/16
-                [ 'CspBlock', 256, 4, 3, 2 ]]  # 1/32
+                [ 'CspBlock', 32, 2, 3, 4, 1, "ReLU", False ],  # 1/4  in_channels, num_res, kernel_size, expand,  stride, activation, dfc 
+                [ 'CspBlock', 64, 3, 3, 4, 2, None, False ],  # 1/8
+                [ 'CspBlock', 128, 3, 3, 4, 2, "ReLU", False],  # 1/16
+                [ 'CspBlock', 256, 4, 3, 2, 3, "ReLU", True],
+                ['SPPF', 256, 256]]  # 1/32
       out_stages: [3,4,5]
       activation: LeakyReLU
     fpn:
       name: GhostPAN
       in_channels: [128, 256,512]
-      out_channels: 96
+      out_channels: 128
       kernel_size: 5
       num_extra_level: 1
       use_depthwise: True
@@ -28,8 +29,8 @@ model:
     head:
       name: NanoDetPlusHead
       num_classes: 10
-      input_channel: 96
-      feat_channels: 96
+      input_channel: 128
+      feat_channels: 128
       stacked_convs: 3 
       kernel_size: 5
       strides: [8, 16, 32, 64]
@@ -53,8 +54,8 @@ model:
     aux_head:
       name: SimpleConvHead
       num_classes: 10
-      input_channel: 96
-      feat_channels: 96
+      input_channel: 128
+      feat_channels: 128
       stacked_convs: 4
       strides: [8, 16, 32, 64]
       activation: ReLU
@@ -79,7 +80,7 @@ data:
       brightness: 0.2
       contrast: [0.8, 1.2]
       saturation: [0.8, 1.2]
-      normalize: [[127.0, 127.0, 127.0], [128.0, 128.0, 128.0]]
+      normalize: [[103.53, 116.28, 123.675], [57.375, 57.12, 58.395]]
   val:
     name: XMLDataset
     class_names: *class_names
