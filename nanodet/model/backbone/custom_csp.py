@@ -33,7 +33,7 @@ class SPPF(nn.Module):
         return self.batch_norm2(self.c_out(torch.cat([x, pool1, pool2, pool3], dim=1)))
 class TinyResBlock(nn.Module):
     def __init__(
-        self, in_channels, kernel_size, expand = 2 norm_cfg, activation, res_type="add"
+        self, in_channels, kernel_size, expand = 2, norm_cfg, activation, res_type="add"
     ):
         super(TinyResBlock, self).__init__()
         assert in_channels % 2 == 0
@@ -101,6 +101,7 @@ class CspBlock(nn.Module):
         in_channels,
         num_res,
         kernel_size=3,
+        expand =1,
         stride=0,
         norm_cfg=dict(type="BN", requires_grad=True),
         activation="LeakyReLU",
@@ -121,9 +122,9 @@ class CspBlock(nn.Module):
         res_blocks = []
         for i in range(num_res):
             if(self.dfc == True):
-                res_block = TinyResBlock_attn(in_channels, kernel_size, norm_cfg, activation)
+                res_block = TinyResBlock_attn(in_channels, kernel_size, expand,  norm_cfg, activation)
             else:
-                res_block = TinyResBlock(in_channels, kernel_size, norm_cfg, activation)
+                res_block = TinyResBlock(in_channels, kernel_size, expand , norm_cfg, activation)
             res_blocks.append(res_block)
         self.res_blocks = nn.Sequential(*res_blocks)
         self.res_out_conv = ConvModule(
@@ -170,9 +171,9 @@ class CustomCspNet(nn.Module):
                     activation=activation,
                 )
             elif stage_cfg[0] == "CspBlock":
-                in_channels, num_res, kernel_size, stride, activation, dfc = stage_cfg[1:]
+                in_channels, num_res, kernel_size, expand,  stride, activation, dfc = stage_cfg[1:]
                 stage = CspBlock(
-                    in_channels, num_res, kernel_size, stride, norm_cfg, activation, dfc 
+                    in_channels, num_res, kernel_size, expand,  stride, norm_cfg, activation, dfc 
                 )
             elif stage_cfg[0] == "MaxPool":
                 kernel_size, stride = stage_cfg[1:]
