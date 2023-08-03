@@ -88,9 +88,8 @@ class TinyResBlock_attn(TinyResBlock):
             )
 
     def forward(self, x):
-        x1 = self.out_conv(self.mid_conv(self.in_conv(x)))
         DFC=self.fn(self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2)))
-        x = F.interpolate(DFC, (x.shape[-2], x.shape[-1]), mode ='nearest')
+        x1 = F.interpolate(DFC, (x.shape[-2], x.shape[-1]), mode ='nearest')
         return x1+x
 
 
