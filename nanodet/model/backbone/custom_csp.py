@@ -14,7 +14,8 @@
 
 import torch
 import torch.nn as nn
-
+import math
+import torch.nn.functional as F
 from ..module.conv import ConvModule
 
 
@@ -43,6 +44,7 @@ class Ghost_attn(nn.Module):
     def __init__(self, inp, oup, kernel_size=1, ratio=2, dw_size=3, stride=1):
         super(Ghost_attn, self).__init__()
         self.act = nn.ReLU()
+        self.gate_fn = nn.Sigmoid()
         self.oup = oup
         init_channels = math.ceil(oup / ratio) 
         new_channels = init_channels*(ratio-1)
@@ -72,13 +74,14 @@ class Ghost_attn(nn.Module):
 class TinyResBlock(nn.Module):
     def __init__(self, inp, oup, kernel_size, stride):
         super().__init__()
+        self.conv= nn.Conv2d(inp, oup, kernel_size = 1, bias = False)
         self.attn = Ghost_attn(inp,oup, kernel_size = kernel_size)
         self.ghost = Ghostblock(oup, oup, kernel_size=kernel_size)
         self.bn = nn.BatchNorm2d(oup)
 
     def forward(self,x):
         x1= self.bn(self.ghost(self.attn(x)))
-        return x1+x
+        return x1+self.conv(x)
 
 
 class CspBlock(nn.Module):
@@ -96,7 +99,7 @@ class CspBlock(nn.Module):
         assert in_channels % 2 == 0
         self.in_conv = ConvModule(
             in_channels,
-            in_channels,
+            out_channels,
             kernel_size,
             stride,
             padding=(kernel_size - 1) // 2,
@@ -154,7 +157,7 @@ class CustomCspNet(nn.Module):
             elif stage_cfg[0] == "CspBlock":
                 in_channels, out_channels, num_res, kernel_size, stride = stage_cfg[1:]
                 stage = CspBlock(
-                    in_channels, num_res, kernel_size, stride, norm_cfg, activation
+                    in_channels,out_channels, num_res, kernel_size, stride, norm_cfg, activation
                 )
             elif stage_cfg[0] == "MaxPool":
                 kernel_size, stride = stage_cfg[1:]
