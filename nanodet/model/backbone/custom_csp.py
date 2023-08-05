@@ -14,57 +14,78 @@
 
 import torch
 import torch.nn as nn
-
+import math 
+import torch.nn.functional as F
 from ..module.conv import ConvModule
 
-
-class TinyResBlock(nn.Module):
-    def __init__(
-        self, in_channels, kernel_size, norm_cfg, activation, res_type="concat"
-    ):
-        super(TinyResBlock, self).__init__()
-        assert in_channels % 2 == 0
-        assert res_type in ["concat", "add"]
-        self.res_type = res_type
-        self.in_conv = ConvModule(
-            in_channels,
-            in_channels // 2,
-            kernel_size,
-            padding=(kernel_size - 1) // 2,
-            norm_cfg=norm_cfg,
-            activation=activation,
-        )
-        self.mid_conv = ConvModule(
-            in_channels // 2,
-            in_channels // 2,
-            kernel_size,
-            padding=(kernel_size - 1) // 2,
-            norm_cfg=norm_cfg,
-            activation=activation,
-        )
-        if res_type == "add":
-            self.out_conv = ConvModule(
-                in_channels // 2,
-                in_channels,
-                kernel_size,
-                padding=(kernel_size - 1) // 2,
-                norm_cfg=norm_cfg,
-                activation=activation,
+class Ghostblock(nn.Module):
+    def __init__(self, inp, oup, kernel_size=1, ratio=2, dw_size=3, stride=1):
+        super(Ghostblock, self).__init__()
+        self.gate_fn=nn.Sigmoid()
+        self.act = nn.ReLU()
+        self.oup = oup
+        init_channels = math.ceil(oup / ratio) 
+        new_channels = init_channels*(ratio-1)
+        self.primary_conv = nn.Sequential(  
+                nn.Conv2d(inp, init_channels, kernel_size, stride, kernel_size//2, bias=False),
+                nn.BatchNorm2d(init_channels)
             )
-
+        self.cheap_operation = nn.Sequential(
+                nn.Conv2d(init_channels, new_channels, dw_size, 1, dw_size//2, groups=init_channels, bias=False),
+                nn.BatchNorm2d(new_channels)
+        )
     def forward(self, x):
-        x = self.in_conv(x)
-        x1 = self.mid_conv(x)
-        if self.res_type == "add":
-            return self.out_conv(x + x1)
-        else:
-            return torch.cat((x1, x), dim=1)
+        x1 = self.act(self.primary_conv(x))
+        x2 = self.act(self.cheap_operation(x1))
+        out = torch.cat([x1,x2], dim=1)
+        return out[:,:self.oup,:,:]
+
+class Ghost_attn(nn.Module):
+    def __init__(self, inp, oup, kernel_size=1, ratio=2, dw_size=3, stride=1):
+        super(Ghost_attn, self).__init__()
+        self.act = nn.ReLU()
+        self.oup = oup
+        init_channels = math.ceil(oup / ratio) 
+        new_channels = init_channels*(ratio-1)
+        self.primary_conv = nn.Sequential(  
+                nn.Conv2d(inp, init_channels, kernel_size, stride, kernel_size//2, bias=False),
+                nn.BatchNorm2d(init_channels)
+            )
+        self.cheap_operation = nn.Sequential(
+                nn.Conv2d(init_channels, new_channels, dw_size, 1, dw_size//2, groups=init_channels, bias=False),
+                nn.BatchNorm2d(new_channels)
+            ) 
+        self.short_conv = nn.Sequential( 
+                nn.Conv2d(inp, oup, kernel_size, stride, kernel_size//2, bias=False),
+                nn.BatchNorm2d(oup),
+                nn.Conv2d(oup, oup, kernel_size=(1,5), stride=1, padding=(0,2), groups=oup,bias=False),
+                nn.BatchNorm2d(oup),
+                nn.Conv2d(oup, oup, kernel_size=(5,1), stride=1, padding=(2,0), groups=oup,bias=False),
+                nn.BatchNorm2d(oup),
+            ) 
+    def forward(self,x):
+         res=self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2))  
+         x1 = self.act(self.primary_conv(x))
+         x2 = self.cheap_operation(x1)
+         out = torch.cat([x1,x2], dim=1)
+         return out[:,:self.oup,:,:]*F.interpolate(self.gate_fn(res),size=(out.shape[-2],out.shape[-1]),mode='nearest')
+class TinyResBlock(nn.Module):
+    def __init__(self, inp, oup, kernel_size, stride):
+        super().__init__()
+        self.attn = Ghost_attn(inp,oup, kernel_size = kernel_size)
+        self.ghost = Ghostblock(oup, oup, kernel_size=kernel_size)
+        self.bn = nn.BatchNorm2d(oup)
+    
+    def forward(self,x):
+        x1= self.bn(self.ghost(self.attn(x)))
+        return x1+x
 
 
 class CspBlock(nn.Module):
     def __init__(
         self,
         in_channels,
+        out_channels,
         num_res,
         kernel_size=3,
         stride=0,
@@ -84,12 +105,12 @@ class CspBlock(nn.Module):
         )
         res_blocks = []
         for i in range(num_res):
-            res_block = TinyResBlock(in_channels, kernel_size, norm_cfg, activation)
+            res_block = TinyResBlock(in_channels,out_channels, kernel_size, stride)
             res_blocks.append(res_block)
         self.res_blocks = nn.Sequential(*res_blocks)
         self.res_out_conv = ConvModule(
-            in_channels,
-            in_channels,
+            out_channels,
+            out_channels,
             kernel_size,
             padding=(kernel_size - 1) // 2,
             norm_cfg=norm_cfg,
@@ -100,7 +121,7 @@ class CspBlock(nn.Module):
         x = self.in_conv(x)
         x1 = self.res_blocks(x)
         x1 = self.res_out_conv(x1)
-        out = torch.cat((x1, x), dim=1)
+        out = x+x1
         return out
 
 
@@ -131,7 +152,7 @@ class CustomCspNet(nn.Module):
                     activation=activation,
                 )
             elif stage_cfg[0] == "CspBlock":
-                in_channels, num_res, kernel_size, stride = stage_cfg[1:]
+                in_channels, out_channels, num_res, kernel_size, stride = stage_cfg[1:]
                 stage = CspBlock(
                     in_channels, num_res, kernel_size, stride, norm_cfg, activation
                 )
