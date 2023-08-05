@@ -11,10 +11,10 @@ model:
       name: CustomCspNet
       net_cfg: [[ 'Conv', 3, 32, 3, 2],  # 1/2
                 [ 'MaxPool', 3, 2 ],  # 1/4
-                [ 'CspBlock', 32, 1, 3, 1 ],  # 1/4
-                [ 'CspBlock', 64, 2, 3, 2 ],  # 1/8
-                [ 'Attn_block', 128, 4, 3, 1],  # 1/16
-                [ 'Attn_block', 256, 4, 3, 1]]  # 1/32
+                [ 'CspBlock1', 32, 1, 3, 1 ],  # 1/4
+                [ 'CspBlock1', 64, 2, 3, 2 ],  # 1/8
+                [ 'CspBlock2', 128, 2, 3, 2 ],  # 1/16
+                [ 'CspBlock2', 256, 3, 3, 2 ]]
       out_stages: [3,4,5]
       activation: LeakyReLU
     fpn:
