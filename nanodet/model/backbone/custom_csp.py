@@ -14,6 +14,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from ..module.conv import ConvModule
 
@@ -59,32 +60,39 @@ class TinyResBlock(nn.Module):
             return self.out_conv(x + x1)
         else:
             return torch.cat((x1, x), dim=1)
-class Attn_block(nn.Module):
-    def __init__(self, in_ch, expand =4, kernel_size=3, stride=1):
-        super().__init__()
-        self.fn = nn.Sigmoid()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(in_ch, expand*in_ch, kernel_size =1, stride =1, bias = False),
-            nn.Conv2d(expand*in_ch, expand*in_ch, kernel_size = 3, stride =1, padding = kernel_size//2, groups = expand*in_ch, bias=False),
-            nn.Conv2d(expand*in_ch, in_ch, kernel_size =1, stride =1, bias = False),
-            nn.BatchNorm2d(in_ch)
-            
+class GhostModuleV2(nn.Module):
+    def __init__(self, inp, oup, kernel_size=1, ratio=2, dw_size=3, stride=1, relu=True,args=None):
+        super(GhostModuleV2, self).__init__()
+        self.mode=mode
+        self.gate_fn=nn.Sigmoid() 
+        self.oup = oup
+        init_channels = math.ceil(oup / ratio) 
+        new_channels = init_channels*(ratio-1)
+        self.primary_conv = nn.Sequential(  
+                nn.Conv2d(inp, init_channels, kernel_size, stride, kernel_size//2, bias=False),
+                nn.BatchNorm2d(init_channels),
+                nn.ReLU(inplace=True) if relu else nn.Sequential(),
         )
-        self.conv2 = nn.Sequential(
-                nn.Conv2d(in_ch, expand*in_ch, kernel_size, stride, kernel_size//2, bias=False),
-                nn.BatchNorm2d(expand*in_ch),
-                nn.Conv2d(in_ch, expand*in_ch, kernel_size=(1,5), stride=1, padding=(0,2), groups=in_ch,bias=False),
-                nn.BatchNorm2d(expand*in_ch),
-                nn.Conv2d(expand*in_ch, in_ch, kernel_size=(5,1), stride=1, padding=(2,0), groups=expand*in_ch,bias=False),
-                nn.BatchNorm2d(in_ch),
-            ) 
+        self.cheap_operation = nn.Sequential(
+                nn.Conv2d(init_channels, new_channels, dw_size, 1, dw_size//2, groups=init_channels, bias=False),
+                nn.BatchNorm2d(new_channels),
+                nn.ReLU(inplace=True) if relu else nn.Sequential(),
+        ) 
+        self.short_conv = nn.Sequential( 
+                nn.Conv2d(inp, oup, kernel_size, stride, kernel_size//2, bias=False),
+                nn.BatchNorm2d(oup),
+                nn.Conv2d(oup, oup, kernel_size=(1,5), stride=1, padding=(0,2), groups=oup,bias=False),
+                nn.BatchNorm2d(oup),
+                nn.Conv2d(oup, oup, kernel_size=(5,1), stride=1, padding=(2,0), groups=oup,bias=False),
+                nn.BatchNorm2d(oup),
+        )
+      
     def forward(self, x):
-        out = nn.ReLU(self.conv1(x)) #inverted bottleneck
-        x2 = self.conv2(x)
-        x2 = self.fn(F.avg_pool2d(x2, kernel_size = 2, stride =2))
-        return out+F.interpolate(x2,size=(out.shape[-2],out.shape[-1]),mode='nearest')
-
-
+         res=self.short_conv(F.avg_pool2d(x,kernel_size=2,stride=2))  
+         x1 = self.primary_conv(x)
+         x2 = self.cheap_operation(x1)
+         out = torch.cat([x1,x2], dim=1)
+         return out[:,:self.oup,:,:]*F.interpolate(self.gate_fn(res),size=(out.shape[-2],out.shape[-1]),mode='nearest')
 class CspBlock(nn.Module):
     def __init__(
         self,
@@ -165,8 +173,8 @@ class CustomCspNet(nn.Module):
                     kernel_size, stride, padding=(kernel_size - 1) // 2
                 )
             elif stage_cfg[0]=="Attn_block":
-                in_ch, expand, kernel_size, stride = stage_cfg[1:]
-                stage = Attn_block(in_ch, expand, kernel_size, stride)
+                inp, oup, kernel_size, ratio, dw_size, stride = stage_cfg[1:]
+                stage = GhostModuleV2(inp = inp, oup=oup, kernel_size= kernel_size, ratio=ratio,dw_size= dw_size, stride = stride)
             else:
                 raise ModuleNotFoundError
             self.stages.append(stage)
