@@ -22,6 +22,7 @@ from .repvgg import RepVGG
 from .resnet import ResNet
 from .shufflenetv2 import ShuffleNetV2
 from .timm_wrapper import TIMMWrapper
+from .enhanced_shufflenet import ESNet
 
 
 def build_backbone(cfg):
@@ -45,5 +46,7 @@ def build_backbone(cfg):
         return TIMMWrapper(**backbone_cfg)
     elif name == "GhostNetV2":
         return GhostNetV2(**backbone_cfg)
+    elif name =="ESNet":
+        return ESNet(**backbone_cfg)
     else:
         raise NotImplementedError
