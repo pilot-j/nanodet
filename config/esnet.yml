@@ -8,12 +8,10 @@ model:
   arch:
     name: OneStageDetector
     backbone:
-      name: CustomCspNet
-      net_cfg: [[ 'Conv', 3, 32, 3, 2],  # 1/2
-                [ 'MaxPool', 3, 2 ],  # 1/4
-                ['ESBlock', True]]
-      out_stages: [3,4,5]
-      activation: LeakyReLU
+      name: ESNet
+      model_name: esnet_m
+      out_stages: [2,9,12]
+      activation: ReLU6
     fpn:
       name: GhostPAN
       in_channels: [128, 256,512]
