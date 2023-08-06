@@ -78,7 +78,7 @@ class SqueezeExcite(nn.Module):
         x = x * self.gate_fn(x_se)
         return x
 class InvertedRes(nn.Module):
-    def __init__(self, in_ch, mid_ch, out_ch, stride):
+    def __init__(self, in_ch, mid_ch, out_ch, stride=1):
         super().__init__()
         self.act = nn.ReLU()
         self.conv_pw = nn.Sequential(
@@ -105,93 +105,31 @@ class InvertedRes(nn.Module):
         return out
         
         
-class TinyResBlock(nn.Module):
-    def __init__(
-        self, in_channels, kernel_size, norm_cfg, activation, res_type="concat"
-    ):
-        super(TinyResBlock, self).__init__()
-        assert in_channels % 2 == 0
-        assert res_type in ["concat", "add"]
-        self.res_type = res_type
-        self.in_conv = ConvModule(
-            in_channels,
-            in_channels // 2,
-            kernel_size,
-            padding=(kernel_size - 1) // 2,
-            norm_cfg=norm_cfg,
-            activation=activation,
-        )
-        self.mid_conv = ConvModule(
-            in_channels // 2,
-            in_channels // 2,
-            kernel_size,
-            padding=(kernel_size - 1) // 2,
-            norm_cfg=norm_cfg,
-            activation=activation,
-        )
-        if res_type == "add":
-            self.out_conv = ConvModule(
-                in_channels // 2,
-                in_channels,
-                kernel_size,
-                padding=(kernel_size - 1) // 2,
-                norm_cfg=norm_cfg,
-                activation=activation,
-            )
+class ESBlock(nn.Module):
+    def __init__(self, make = True):
+        if make:
+            super().__init__()
+            self.ratio = [0.875, 0.5, 1.0, 0.625, 0.5, 0.75, 0.625, 0.625, 0.5, 0.625, 1.0, 0.625, 0.75]
+            self.stage_repeats = [3, 7, 3]
+            stage_out_channels = [-1, 32, make_divisible(128, divisor=16), make_divisible(256, divisor=16),make_divisible(512, divisor=16), 1024]
+        
+        self.num_res = num_res
+        res_block = []
+        arch_idx = 0
+        for stage_id, num_repeat in enumerate(self.stage_repeats):
+            for i in range(num_repeat):
+                channels_scales = self.ratio[arch_idx]
+                mid_c = make_divisible(
+                    int(stage_out_channels[stage_id + 2] * channels_scales),
+                    divisor=8)
+                res_conv = InvertedRes(in_ch = stage_out_channels[stage_id+1], mid_ch = mid_c, out_ch=stage_out_channels[stage_id+2], stride = 1)
+                res_block.append(res_conv)
+                arch_idx +=1
+        self.res_block = nn.Sequential(*res_block)
+    def forward(self,x):
+        return self.res_block(x)
 
-    def forward(self, x):
-        x = self.in_conv(x)
-        x1 = self.mid_conv(x)
-        if self.res_type == "add":
-            return self.out_conv(x + x1)
-        else:
-            return torch.cat((x1, x), dim=1)
-
-
-class CspBlock(nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        num_res,
-        kernel_size=3,
-        stride=0,
-        norm_cfg=dict(type="BN", requires_grad=True),
-        activation="LeakyReLU",
-    ):
-        super(CspBlock, self).__init__()
-        assert in_channels % 2 == 0
-        self.in_conv = ConvModule(
-            in_channels,
-            in_channels,
-            kernel_size,
-            stride,
-            padding=(kernel_size - 1) // 2,
-            norm_cfg=norm_cfg,
-            activation=activation,
-        )
-        res_blocks = []
-        for i in range(num_res):
-            res_block = TinyResBlock(in_channels, kernel_size, norm_cfg, activation)
-            res_blocks.append(res_block)
-        self.res_blocks = nn.Sequential(*res_blocks)
-        self.res_out_conv = ConvModule(
-            in_channels,
-            in_channels,
-            kernel_size,
-            padding=(kernel_size - 1) // 2,
-            norm_cfg=norm_cfg,
-            activation=activation,
-        )
-
-    def forward(self, x):
-        x = self.in_conv(x)
-        x1 = self.res_blocks(x)
-        x1 = self.res_out_conv(x1)
-        out = torch.cat((x1, x), dim=1)
-        return out
-
-
-class CustomCspNet(nn.Module):
+class ESNet(nn.Module):
     def __init__(
         self,
         net_cfg,
@@ -199,7 +137,7 @@ class CustomCspNet(nn.Module):
         norm_cfg=dict(type="BN", requires_grad=True),
         activation="LeakyReLU",
     ):
-        super(CustomCspNet, self).__init__()
+        super(ESNet, self).__init__()
         assert isinstance(net_cfg, list)
         assert set(out_stages).issubset(i for i in range(len(net_cfg)))
         self.out_stages = out_stages
@@ -217,11 +155,9 @@ class CustomCspNet(nn.Module):
                     norm_cfg=norm_cfg,
                     activation=activation,
                 )
-            elif stage_cfg[0] == "CspBlock":
-                in_channels, num_res, kernel_size, stride = stage_cfg[1:]
-                stage = CspBlock(
-                    in_channels, num_res, kernel_size, stride, norm_cfg, activation
-                )
+            elif stage_cfg[0] == "ESBlock":
+                make = stage_cfg[1:]
+                stage = ESBlock(make)
             elif stage_cfg[0] == "MaxPool":
                 kernel_size, stride = stage_cfg[1:]
                 stage = nn.MaxPool2d(
