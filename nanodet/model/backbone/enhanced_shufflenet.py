@@ -14,8 +14,14 @@
 
 import torch
 import torch.nn as nn
-
+from ..module.activation import act_layers
 from ..module.conv import ConvModule
+import torch.utils.model_zoo as model_zoo
+
+model_urls = {
+    "esnet_m": "https://drive.google.com/file/d/1d1aW8dhaKiL1-44M7saBkP0_RVAoioK8/view?usp=drive_link"
+}
+
 def _make_divisible(v, divisor, min_value=None):
     """
     This function is taken from the original tf repo.
@@ -104,88 +110,70 @@ class InvertedRes(nn.Module):
         out = channel_shuffle(out,2)
         return out
         
-        
-class ESBlock(nn.Module):
-    def __init__(self, make = True):
-        if make:
-            super().__init__()
-            self.ratio = [0.875, 0.5, 1.0, 0.625, 0.5, 0.75, 0.625, 0.625, 0.5, 0.625, 1.0, 0.625, 0.75]
-            self.stage_repeats = [3, 7, 3]
-            stage_out_channels = [-1, 32, make_divisible(128, divisor=16), make_divisible(256, divisor=16),make_divisible(512, divisor=16), 1024]
-        
-        self.num_res = num_res
-        res_block = []
-        arch_idx = 0
-        for stage_id, num_repeat in enumerate(self.stage_repeats):
-            for i in range(num_repeat):
-                channels_scales = self.ratio[arch_idx]
-                mid_c = make_divisible(
-                    int(stage_out_channels[stage_id + 2] * channels_scales),
-                    divisor=8)
-                res_conv = InvertedRes(in_ch = stage_out_channels[stage_id+1], mid_ch = mid_c, out_ch=stage_out_channels[stage_id+2], stride = 1)
-                res_block.append(res_conv)
-                arch_idx +=1
-        self.res_block = nn.Sequential(*res_block)
-    def forward(self,x):
-        return self.res_block(x)
-
 class ESNet(nn.Module):
-    def __init__(
-        self,
-        net_cfg,
-        out_stages,
-        norm_cfg=dict(type="BN", requires_grad=True),
-        activation="LeakyReLU",
-    ):
-        super(ESNet, self).__init__()
-        assert isinstance(net_cfg, list)
-        assert set(out_stages).issubset(i for i in range(len(net_cfg)))
+    def __init__(self, model_name, out_stages =(2,9,12),activation="ReLU6", pretrain = True):
+        super().__init__()
+        self.model_name = model_name
         self.out_stages = out_stages
-        self.activation = activation
-        self.stages = nn.ModuleList()
-        for stage_cfg in net_cfg:
-            if stage_cfg[0] == "Conv":
-                in_channels, out_channels, kernel_size, stride = stage_cfg[1:]
-                stage = ConvModule(
-                    in_channels,
-                    out_channels,
-                    kernel_size,
-                    stride,
-                    padding=(kernel_size - 1) // 2,
-                    norm_cfg=norm_cfg,
-                    activation=activation,
-                )
-            elif stage_cfg[0] == "ESBlock":
-                make = stage_cfg[1:]
-                stage = ESBlock(make)
-            elif stage_cfg[0] == "MaxPool":
-                kernel_size, stride = stage_cfg[1:]
-                stage = nn.MaxPool2d(
-                    kernel_size, stride, padding=(kernel_size - 1) // 2
-                )
-            else:
-                raise ModuleNotFoundError
-            self.stages.append(stage)
-        self._init_weight()
-
-    def forward(self, x):
+        es_block_settings = [
+            # ratio|in_channel|out_channel|
+            [0.875, 32, 128],  # stage0
+            [0.5, 128, 128],  # stage1 
+            [1, 128,128],  # stage2 
+            [0.625, 128, 256],  # stage3
+            [0.5, 256,256],  # stage4 
+            [0.75, 256, 256],  # stage5
+            [0.625, 256, 256], #stage6
+            [0.625, 256, 256],#stage7
+            [0.5, 256, 256],#stage8
+            [0.625,256,256],#stage9
+            [1, 256, 512],#stage10
+            [0.625, 512, 512],#stage11
+            [0.625, 512,512]#stage12
+        ]
+        out_channels = 32
+        self.stem = nn.Sequential(
+            nn.Conv2d(3, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(num_features=out_channels, momentum=momentum, eps=epsilon),
+            act_layers(activation)
+        )
+        self.blocks = nn.ModuleList([])
+        for i, stage_setting in enumerate(es_block_settings):
+            stage = nn.ModuleList([])
+            (   ratio,
+                in_ch,
+                out_ch
+            ) = stage_setting
+            mid_ch = make_divisible(int(out_ch * ratio),divisor=8)
+            stage.append(
+                InvertedRes(in_ch, mid_ch, out_ch, stride = 1)
+            )
+        self.blocks.append(stage)
+    def forward(self,x):
+        x = self.stem(x)
         output = []
-        for i, stage in enumerate(self.stages):
+        idx = 0
+        for j, stage in enumerate(self.blocks):
             x = stage(x)
-            if i in self.out_stages:
+            if j in self.out_stages:
                 output.append(x)
-        return tuple(output)
-
-    def _init_weight(self):
+        return output
+def _initialize_weights(self, pretrain=True):
         for m in self.modules():
-            if self.activation == "LeakyReLU":
-                nonlinearity = "leaky_relu"
-            else:
-                nonlinearity = "relu"
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity=nonlinearity
-                )
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2.0 / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+        if pretrain:
+            url = model_urls[self.model_name]
+            if url is not None:
+                pretrained_state_dict = model_zoo.load_url(url)
+                print("=> loading pretrained model {}".format(url))
+                self.load_state_dict(pretrained_state_dict, strict=False)
+def load_pretrain(self, path):
+        state_dict = torch.load(path)
+        self.load_state_dict(state_dict, strict=True)
