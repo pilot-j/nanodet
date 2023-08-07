@@ -84,7 +84,7 @@ class SqueezeExcite(nn.Module):
     x = x * self.gate_fn(x_se)
     return x
 class InvertedRes(nn.Module):
-  def __init__(self, in_ch, mid_ch, out_ch, stride=2):
+  def __init__(self, in_ch, mid_ch, out_ch, stride):
     super().__init__()
     self.act = nn.ReLU()
     self.conv_pw = nn.Sequential(
@@ -109,7 +109,56 @@ class InvertedRes(nn.Module):
     out = torch.cat((x1,x3), dim=1)
     out = channel_shuffle(out,2)
     return out
-        
+class InvertedResDS(nn.Module):
+  def __init__(self, in_ch, mid_ch, out_ch, stride):
+    super(InvertedResDS, self).__init__()
+    self.act1 = nn.ReLU()
+    self.act2 = nn.Hardswish()
+    self.conv_dw1 = nn.Sequential(
+      nn.Conv2d(in_ch, in_ch,kernel_size =3, stride =stride, padding =1, groups =in_ch),
+      nn.BatchNorm2d(in_ch)
+      )
+    self.conv_linear1 = nn.Sequential(
+      nn.Conv2d(in_ch, out_ch//2,kernel_size =1, stride =1, padding =0, groups =1),
+      nn.BatchNorm2d(out_ch//2)
+      )
+    self.conv_pw1 = nn.Sequential(
+      nn.Conv2d(in_ch//2, mid_ch//2,kernel_size =1, stride =1, padding =0, groups =1),
+      nn.BatchNorm2d(mid_ch//2)
+      )
+    self.conv_pw2 =nn.Sequential(
+      nn.Conv2d(in_ch, mid_ch//2,kernel_size =1, stride =1, padding =0, groups =1),
+      nn.BatchNorm2d(mid_ch//2)
+      )
+    self.conv_dw2 = nn.Sequential(
+      nn.Conv2d(mid_ch//2, mid_ch//2,kernel_size =3, stride =stride, padding =1, groups =mid_ch//2),
+      nn.BatchNorm2d(mid_ch//2)
+      )
+    self.SE = SqueezeExcite(mid_ch // 2)
+    self.conv_linear2 = nn.Sequential(
+      nn.Conv2d(mid_ch//2, out_ch//2, kernel_size = 1, stride =1, padding =0, groups =1),
+      nn.BatchNorm2d(out_ch//2)
+      )
+    self.conv_dw_mv1 = nn.Sequential(
+      nn.Conv2d(out_ch, out_ch, kernel_size =3, stride =1, padding=1, groups =out_ch),
+      nn.BatchNorm2d(out_ch)
+      )
+    self.conv_pw_mv1 = nn.Sequential(
+      nn.Conv2d(out_ch, out_ch, kernel_size =1, stride =1, padding=0, groups =out_ch),
+      nn.BatchNorm2d(out_ch)
+      )
+
+  def forward(self, x):
+    x1 = self.conv_dw1(x)
+    x1 = self.act1(self.conv_linear1(x1))
+    x2 = self.act1(self.conv_pw2(x))
+    x2 = self.conv_dw2(x2)
+    x2 = self.SE(x2)
+    x2 = self.act1(self.conv_linear2(x2))
+    out = torch.concat((x1,x2), axis=1)
+    out = self.act2(self.conv_dw_mv1(out))
+    out = self.act2(self.conv_pw_mv1(out))
+    return out
 class ESNet(nn.Module):
   def __init__(self, model_name, out_stages =(2,9,12),activation="ReLU6", pretrain = False):
     super().__init__()
@@ -131,7 +180,11 @@ class ESNet(nn.Module):
     for i, stage_setting in enumerate(es_block_settings):
       (ratio,in_ch,out_ch) = stage_setting
       mid_ch = make_divisible(int(out_ch * ratio),divisor=8)
-      self.blocks.append(InvertedRes(in_ch, mid_ch, out_ch, stride = 2))
+      if(in_ch==out_ch):
+        self.blocks.append(InvertedRes(in_ch, mid_ch, out_ch, stride = 1))
+      else:
+        self.blocks.append(InvertedResDS(in_ch, mid_ch, out_ch, stride = 2))
+
 
   def forward(self,x):
     x = self.stem(x)
