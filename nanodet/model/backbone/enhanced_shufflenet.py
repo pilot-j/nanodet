@@ -160,7 +160,7 @@ class InvertedResDS(nn.Module):
     out = self.act2(self.conv_pw_mv1(out))
     return out
 class ESNet(nn.Module):
-  def __init__(self, model_name, out_stages =(2,9,12),activation="ReLU6", pretrain = False):
+  def __init__(self, model_name, out_stages =(2,9,12),activation="ReLU6", pretrain = True):
     super().__init__()
     self.model_name = model_name
     self.out_stages = out_stages
@@ -195,7 +195,7 @@ class ESNet(nn.Module):
         output.append(x)
 
     return output
-  def _initialize_weights(self, pretrain=False):
+  def _initialize_weights(self, pretrain=True):
     for m in self.modules():
       if isinstance(m, nn.Conv2d):
         n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
