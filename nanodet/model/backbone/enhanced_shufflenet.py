@@ -84,7 +84,7 @@ class SqueezeExcite(nn.Module):
     x = x * self.gate_fn(x_se)
     return x
 class InvertedRes(nn.Module):
-  def __init__(self, in_ch, mid_ch, out_ch, stride=1):
+  def __init__(self, in_ch, mid_ch, out_ch, stride=2):
     super().__init__()
     self.act = nn.ReLU()
     self.conv_pw = nn.Sequential(
@@ -131,7 +131,7 @@ class ESNet(nn.Module):
     for i, stage_setting in enumerate(es_block_settings):
       (ratio,in_ch,out_ch) = stage_setting
       mid_ch = make_divisible(int(out_ch * ratio),divisor=8)
-      self.blocks.append(InvertedRes(in_ch, mid_ch, out_ch, stride = 1))
+      self.blocks.append(InvertedRes(in_ch, mid_ch, out_ch, stride = 2))
 
   def forward(self,x):
     x = self.stem(x)
