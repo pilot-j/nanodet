@@ -21,7 +21,7 @@ from ..module.conv import ConvModule
 import torch.utils.model_zoo as model_zoo
 
 model_urls = {
-    "esnet_m": "https://paddledet.bj.bcebos.com/models/pretrained/ESNet_x1_0_pretrained.pdparams"
+    "esnet_m": "https://github.com/pilot-j/nanodet/blob/main/ESNet_x1_0_pretrained_mmdet_format.pth"
 }
 
 def make_divisible(v, divisor, min_value=None):
