@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from .utils import weighted_loss
 
-
+nINF = -100 #for twoway loss
 @weighted_loss
 def quality_focal_loss(pred, target, beta=2.0):
     r"""Quality Focal Loss (QFL) is from `Generalized Focal Loss: Learning
@@ -178,3 +178,26 @@ class DistributionFocalLoss(nn.Module):
             pred, target, weight, reduction=reduction, avg_factor=avg_factor
         )
         return loss_cls
+
+class TwoWayLoss(nn.Module):
+    def __init__(self, Tp=4., Tn=1.):
+        super(TwoWayLoss, self).__init__()
+        self.Tp = Tp
+        self.Tn = Tn
+
+    def forward(self, pred, target):
+        class_mask = (target > 0).any(dim=0)
+        sample_mask = (target > 0).any(dim=1)
+
+        # Calculate hard positive/negative logits
+        pmask = target.masked_fill(target <= 0, nINF).masked_fill(target > 0, float(0.0))
+        plogit_class = torch.logsumexp(-pred/self.Tp + pmask, dim=0).mul(self.Tp)[class_mask]
+        plogit_sample = torch.logsumexp(-pred/self.Tp + pmask, dim=1).mul(self.Tp)[sample_mask]
+    
+        nmask = target.masked_fill(target != 0, nINF).masked_fill(y == 0, float(0.0))
+        nlogit_class = torch.logsumexp(pred/self.Tn + nmask, dim=0).mul(self.Tn)[class_mask]
+        nlogit_sample = torch.logsumexp(pred/self.Tn + nmask, dim=1).mul(self.Tn)[sample_mask]
+        loss_cls = self.loss_weight*(F.softplus(nlogit_class + plogit_class).mean() + \
+                F.softplus(nlogit_sample + plogit_sample).mean())
+        return loss_cls
+
