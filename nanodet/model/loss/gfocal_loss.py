@@ -58,7 +58,9 @@ def quality_focal_loss(pred, target, beta=2.0):
     pred_sigmoid = pred.sigmoid()
     scale_factor = pred_sigmoid
     zerolabel = scale_factor.new_zeros(pred.shape)
-    loss = TwoWayLoss(pred, zerolabel) * scale_factor.pow(beta)
+    loss = F.binary_cross_entropy_with_logits(
+        pred, zerolabel, reduction="none"
+    ) * scale_factor.pow(beta)
 
     # FG cat_id: [0, num_classes -1], BG cat_id: num_classes
     bg_class_ind = pred.size(1)
@@ -68,10 +70,14 @@ def quality_focal_loss(pred, target, beta=2.0):
     pos_label = label[pos].long()
     # positives are supervised by bbox quality (IoU) score
     scale_factor = score[pos] - pred_sigmoid[pos, pos_label]
-    loss[pos, pos_label] = TwoWayLoss(
-        pred[pos, pos_label], score[pos]) * scale_factor.abs().pow(beta)
+    loss[pos, pos_label] = F.binary_cross_entropy_with_logits(
+        pred[pos, pos_label], score[pos], reduction="none"
+    ) * scale_factor.abs().pow(beta)
+
     loss = loss.sum(dim=1, keepdim=False)
     return loss
+
+
 @weighted_loss
 def distribution_focal_loss(pred, label):
     r"""Distribution Focal Loss (DFL) is from `Generalized Focal Loss: Learning
