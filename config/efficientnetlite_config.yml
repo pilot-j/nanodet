@@ -5,7 +5,8 @@ model:
     name: ExpMovingAverager
     decay: 0.9998
   arch:
-    name: OneStageDetector
+    name: NanoDetPlus
+    detach_epoch: 10
     backbone:
       name: EfficientNetLite
       model_name: efficientnet_lite0
@@ -14,7 +15,7 @@ model:
     fpn:
       name: GhostPAN
       in_channels: [40, 112,320]
-      out_channels: 96
+      out_channels: 128
       kernel_size: 5
       num_extra_level: 1
       use_depthwise: True
@@ -22,8 +23,8 @@ model:
     head:
       name: NanoDetPlusHead
       num_classes: 10
-      input_channel: 96
-      feat_channels: 96
+      input_channel: 128
+      feat_channels: 128
       stacked_convs: 3 
       kernel_size: 5
       strides: [8, 16, 32, 64]
