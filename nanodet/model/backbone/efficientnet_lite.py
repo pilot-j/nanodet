@@ -129,20 +129,20 @@ class MBConvBlock(nn.Module):
         :param drop_connect_rate: drop connect rate (float, between 0 and 1)
         :return: output of block
         """
-        x1, x2 = x.chunk(2, dim=1)
+        #x1, x2 = x.chunk(2, dim=1)
         # Expansion and Depthwise Convolution
         identity = x1
         if self.expand_ratio != 1:
-            x1 = self._relu(self._bn0(self._expand_conv(x1)))
-        x1 = self._relu(self._bn1(self._depthwise_conv(x1)))
+            x = self._relu(self._bn0(self._expand_conv(x)))
+        x = self._relu(self._bn1(self._depthwise_conv(x)))
 
         # Squeeze and Excitation
         if self.has_se:
-            x_squeezed = F.adaptive_avg_pool2d(x1, 1)
+            x_squeezed = F.adaptive_avg_pool2d(x, 1)
             x_squeezed = self._se_expand(self._relu(self._se_reduce(x_squeezed)))
-            x1 = torch.sigmoid(x_squeezed) * x1
+            x = torch.sigmoid(x_squeezed) * x
 
-        x1 = self._bn2(self._project_conv(x1))
+        x = self._bn2(self._project_conv(x))
 
         # Skip connection and drop connect
         if (
@@ -151,11 +151,11 @@ class MBConvBlock(nn.Module):
             and self.input_filters == self.output_filters
         ):
             if drop_connect_rate:
-                x1 = drop_connect(x1, drop_connect_rate, training=self.training)
-            x1 += identity  # skip connection
-        out = torch.cat((x1,x2), dim =1)
-        out = out.channel_shuffle(out,2)
-        return out
+                x = drop_connect(x, drop_connect_rate, training=self.training)
+            x += identity  # skip connection
+        # out = torch.cat((x1,x2), dim =1)
+        # out = out.channel_shuffle(out,2)
+        return x
 
 
 class EfficientNetLite(nn.Module):
