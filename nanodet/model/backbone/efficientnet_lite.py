@@ -129,9 +129,9 @@ class MBConvBlock(nn.Module):
         :param drop_connect_rate: drop connect rate (float, between 0 and 1)
         :return: output of block
         """
-        #x1, x2 = x.chunk(2, dim=1)
+
         # Expansion and Depthwise Convolution
-        identity = x1
+        identity = x
         if self.expand_ratio != 1:
             x = self._relu(self._bn0(self._expand_conv(x)))
         x = self._relu(self._bn1(self._depthwise_conv(x)))
@@ -153,8 +153,6 @@ class MBConvBlock(nn.Module):
             if drop_connect_rate:
                 x = drop_connect(x, drop_connect_rate, training=self.training)
             x += identity  # skip connection
-        # out = torch.cat((x1,x2), dim =1)
-        # out = out.channel_shuffle(out,2)
         return x
 
 
